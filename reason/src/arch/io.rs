@@ -1,4 +1,3 @@
-
 #[cfg(target_arch="x86_64")]
 use crate::arch::x86_64;
 
@@ -15,6 +14,6 @@ pub fn outb(port: u16, value: u8) {
 pub fn inb(port: u16) -> u8 {
     unsafe { 
         #[cfg(target_arch="x86_64")]
-         return x86_64::inb(port);
+        return x86_64::inb(port);
     };
 }

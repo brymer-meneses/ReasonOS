@@ -2,8 +2,10 @@
 QEMUFLAGS := \
 	-serial stdio
 
+all: run
+
 limine:
-	# git clone https://github.com/limine-bootloader/limine.git --branch=v6.x-branch-binary --depth=1 build/limine
+	git clone https://github.com/limine-bootloader/limine.git --branch=v6.x-branch-binary --depth=1 build/limine || true
 	$(MAKE) -C build/limine
 
 kernel:
