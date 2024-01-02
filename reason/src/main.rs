@@ -7,7 +7,6 @@ mod arch;
 use drivers::serial;
 use drivers::framebuffer;
 
-
 #[no_mangle]
 unsafe extern "C" fn _start() -> ! {
     serial::initialize();

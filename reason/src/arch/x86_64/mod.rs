@@ -1,5 +1,20 @@
 use core::arch::asm;
 
+pub fn halt() -> ! {
+    unsafe {
+        loop {
+            asm!("hlt");
+        }
+    }
+}
+
+pub fn hcf() -> ! {
+    unsafe {
+        asm!("cli");
+    }
+    halt();
+}
+
 #[inline(always)]
 pub unsafe fn outb(port: u16, value: u8) {
     asm!(
