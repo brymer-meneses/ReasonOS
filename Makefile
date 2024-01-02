@@ -1,4 +1,7 @@
 
+QEMUFLAGS := \
+	-serial stdio
+
 limine:
 	# git clone https://github.com/limine-bootloader/limine.git --branch=v6.x-branch-binary --depth=1 build/limine
 	$(MAKE) -C build/limine
@@ -26,4 +29,4 @@ iso: limine kernel
 
 
 run: iso
-	qemu-system-x86_64 -cdrom build/reason.iso
+	qemu-system-x86_64 $(QEMUFLAGS) -cdrom build/reason.iso
