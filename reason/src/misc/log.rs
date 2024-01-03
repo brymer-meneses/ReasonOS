@@ -13,5 +13,5 @@ macro_rules! info {
 }
 
 pub(crate) use debug;
-pub(crate) use warning;
 pub(crate) use info;
+pub(crate) use warning;

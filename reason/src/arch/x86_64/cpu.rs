@@ -1,0 +1,66 @@
+#![allow(dead_code)]
+
+use core::arch::asm;
+
+#[repr(C, packed)]
+pub struct Context {
+    pub r15: u64,
+    pub r14: u64,
+    pub r13: u64,
+    pub r12: u64,
+    pub r11: u64,
+    pub r10: u64,
+    pub r9: u64,
+    pub r8: u64,
+    pub rdi: u64,
+    pub rsi: u64,
+    pub rdx: u64,
+    pub rcx: u64,
+    pub rbx: u64,
+    pub rax: u64,
+
+    pub vector: u64,
+    pub error: u64,
+
+    pub iret_rip: u64,
+    pub iret_cs: u64,
+    pub iret_flags: u64,
+    pub iret_rsp: u64,
+    pub iret_ss: u64,
+}
+
+
+pub fn halt() -> ! {
+    unsafe {
+        loop {
+            asm!("hlt");
+        }
+    }
+}
+
+pub fn hcf() -> ! {
+    unsafe {
+        asm!("cli");
+    }
+    halt();
+}
+
+#[inline(always)]
+pub unsafe fn outb(port: u16, value: u8) {
+    asm!(
+       "out dx, al",
+       in("dx") port,
+       in("al") value,
+    );
+}
+
+#[inline(always)]
+pub unsafe fn inb(port: u16) -> u8 {
+    let data: u8;
+    asm!(
+       "in dx, al",
+       in("dx") port,
+       out("al") data,
+    );
+    return data;
+}

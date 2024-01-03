@@ -8,7 +8,7 @@ pub fn initialize() {
 
     if let Some(framebuffer_response) = FRAMEBUFFER_REQUEST.get_response().get() {
         if framebuffer_response.framebuffer_count < 1 {
-            arch::hcf();
+            arch::cpu::hcf();
         }
         let framebuffer = &framebuffer_response.framebuffers()[0];
         for y in 0..framebuffer.height as usize {
