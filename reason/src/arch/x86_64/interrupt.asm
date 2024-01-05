@@ -94,16 +94,16 @@ set_no_error_interrupt_handler 31
 %define MAX_IDT_ENTRIES 256
 
 ; Make room for the ISRs
-; %assign i 32
-; %rep MAX_IDT_ENTRIES - 32
-; set_no_error_interrupt_handler i
-; %assign i i+1
-; %endrep
+%assign i 32
+%rep MAX_IDT_ENTRIES - 32
+set_no_error_interrupt_handler i
+%assign i i+1
+%endrep
 
 global INTERRUPT_HANDLERS
 INTERRUPT_HANDLERS:
 %assign i 0
-%rep 32
+%rep 256
   dq interrupt_handler%+i
 %assign i i+1
 %endrep

@@ -34,9 +34,7 @@ impl Writer {
             return;
         }
 
-        unsafe {
-            cpu::outb(PORT, character as u8);
-        }
+        cpu::outb(PORT, character as u8);
     }
 
     fn write_string(&self, string: &str) {
@@ -68,7 +66,7 @@ macro_rules! print {
 
 macro_rules! println {
     () => ($crate::serial::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::serial::print!("{}\n", format_args!($($arg)*)));
 }
 
 pub(crate) use print;

@@ -61,14 +61,13 @@ impl IdtPtr {
     }
 }
 
-const IDT_ENTRIES: usize = 32;
+const IDT_ENTRIES: usize = 256;
 
 static mut INTERRUPT_DESCRIPTOR_TABLE: [IdtEntry; IDT_ENTRIES] = [IdtEntry::NULL; IDT_ENTRIES];
 
 extern "C" {
     static INTERRUPT_HANDLERS: [extern fn() -> !; IDT_ENTRIES];
 } 
-
 
 pub fn initialize() {
     let mut idtptr = IdtPtr::new();

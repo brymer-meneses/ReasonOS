@@ -2,6 +2,7 @@
 
 use core::arch::asm;
 
+#[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct Context {
     pub r15: u64,
