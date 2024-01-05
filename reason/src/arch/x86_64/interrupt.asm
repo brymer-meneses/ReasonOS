@@ -100,8 +100,8 @@ set_no_error_interrupt_handler 31
 ; %assign i i+1
 ; %endrep
 
-global INTERRUPT_HANDLER_TABLE
-INTERRUPT_HANDLER_TABLE:
+global INTERRUPT_HANDLERS
+INTERRUPT_HANDLERS:
 %assign i 0
 %rep 32
   dq interrupt_handler%+i

@@ -22,16 +22,27 @@ struct IdtEntry {
 }
 
 impl IdtEntry {
-    const fn new() -> Self {
-        IdtEntry {
-            isr_low: 0,
-            kernel_code_segment: 0,
-            ist: 0,
-            attributes: 0,
-            isr_mid: 0,
-            isr_high: 0,
-            reserved: 0
-        }
+    const NULL: Self = Self {
+        isr_low: 0,
+        kernel_code_segment: 0,
+        ist: 0,
+        attributes: 0,
+        isr_mid: 0,
+        isr_high: 0,
+        reserved: 0
+    };
+}
+
+impl IdtEntry {
+    fn set_entry(&mut self, handler: u64, flags: u8) {
+        self.isr_low = (handler & 0xffff) as u16;
+        self.isr_mid = ((handler >> 16) & 0xffff) as u16;
+        self.isr_high = ((handler >> 32) & 0xFFFFFFFF) as u32;
+
+        self.kernel_code_segment = 0x08;
+        self.ist = 0;
+        self.attributes = flags;
+        self.reserved = 0;
     }
 }
 
@@ -50,44 +61,30 @@ impl IdtPtr {
     }
 }
 
-static mut INTERRUPT_DESCRIPTOR_TABLE: [IdtEntry; 256] = [IdtEntry::new(); 256];
+const IDT_ENTRIES: usize = 32;
+
+static mut INTERRUPT_DESCRIPTOR_TABLE: [IdtEntry; IDT_ENTRIES] = [IdtEntry::NULL; IDT_ENTRIES];
 
 extern "C" {
-    static INTERRUPT_HANDLER_TABLE: [u64; 32];
+    static INTERRUPT_HANDLERS: [extern fn() -> !; IDT_ENTRIES];
 } 
 
-
-pub fn set_entry(vector: u8, handler: u64, flags: u8) {
-    unsafe {
-        let idt = &mut INTERRUPT_DESCRIPTOR_TABLE;
-        let vector = vector as usize;
-
-        idt[vector].isr_low = (handler & 0xffff) as u16;
-        idt[vector].isr_mid = ((handler >> 16) & 0xffff) as u16;
-        idt[vector].isr_high = ((handler >> 32) & 0xFFFFFFFF) as u32;
-
-        idt[vector].kernel_code_segment = 0x08;
-        idt[vector].ist = 0;
-        idt[vector].attributes = flags;
-        idt[vector].reserved = 0;
-    }
-}
 
 pub fn initialize() {
     let mut idtptr = IdtPtr::new();
     unsafe {
         idtptr.base = &INTERRUPT_DESCRIPTOR_TABLE as *const _ as u64;
-        idtptr.limit = (mem::size_of::<IdtEntry>() * 256 - 1) as u16;
-        
-        for i in 0..32 {
-            let addr = &INTERRUPT_HANDLER_TABLE[i as usize] as *const _ as u64;
-            log::info!("Address {i} 0x{:016X}", addr);
-            set_entry(i, addr, 0x8E);
+        idtptr.limit = (mem::size_of::<IdtEntry>() * IDT_ENTRIES - 1) as u16;
+        for (index, &handler) in INTERRUPT_HANDLERS.iter().enumerate() {
+            INTERRUPT_DESCRIPTOR_TABLE[index].set_entry(handler as u64, 0x8E);
         }
-
-        asm!("lidt [{0}]", in(reg) &idtptr)
+        load_idt(&idtptr);
     }
 
     log::info!("Initialized IDT");
 }
 
+#[inline(always)]
+unsafe fn load_idt(ptr: &IdtPtr) {
+    asm!("lidt [{0}]", in(reg) ptr, options(nostack));
+}
