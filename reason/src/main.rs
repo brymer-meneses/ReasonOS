@@ -8,12 +8,15 @@ mod misc;
 use drivers::framebuffer;
 use drivers::serial;
 
+use arch::cpu;
 use misc::log;
+
+use core::arch::asm;
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     serial::print!("\x1b[31m{}\x1B[0m\n", info);
-    arch::cpu::hcf();
+    cpu::hcf();
 }
 
 #[no_mangle]
@@ -21,9 +24,11 @@ unsafe extern "C" fn _start() -> ! {
     serial::initialize();
     framebuffer::initialize();
 
-    log::info!("hello {}", "kernel!");
+    arch::initialize();
 
-    assert!(1 + 1 == 3);
+    log::info!("Successfully initialized kernel!");
 
-    arch::cpu::halt();
+    asm!("int 0");
+
+    cpu::halt();
 }

@@ -1,6 +1,9 @@
 
 QEMUFLAGS := \
-	-serial stdio
+	-serial stdio \
+	-no-reboot \
+	-D qemu-log.txt \
+	-d int -M smm=off \
 
 all: run
 
@@ -32,3 +35,6 @@ iso: limine kernel
 
 run: iso
 	qemu-system-x86_64 $(QEMUFLAGS) -cdrom build/reason.iso
+
+clean:
+	rm -rf build
