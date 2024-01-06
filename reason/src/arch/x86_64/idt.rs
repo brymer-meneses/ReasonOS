@@ -53,12 +53,10 @@ struct IdtPtr {
 }
 
 impl IdtPtr {
-    const fn new() -> Self {
-        IdtPtr {
-            limit: 0,
-            base: 0
-        }
-    }
+    const NULL: Self = Self {
+        limit: 0,
+        base: 0
+    };
 }
 
 const IDT_ENTRIES: usize = 256;
@@ -70,7 +68,7 @@ extern "C" {
 } 
 
 pub fn initialize() {
-    let mut idtptr = IdtPtr::new();
+    let mut idtptr = IdtPtr::NULL;
     unsafe {
         idtptr.base = &INTERRUPT_DESCRIPTOR_TABLE as *const _ as u64;
         idtptr.limit = (mem::size_of::<IdtEntry>() * IDT_ENTRIES - 1) as u16;

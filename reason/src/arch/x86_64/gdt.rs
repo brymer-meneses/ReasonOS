@@ -16,16 +16,14 @@ struct GdtEntry {
 }
 
 impl GdtEntry {
-    const fn new() -> Self {
-        GdtEntry {
-            limit_low: 0,
-            base_low: 0,
-            base_middle: 0,
-            access: 0,
-            flags: 0,
-            base_high: 0
-        }
-    }
+    const NULL: Self = Self {
+        limit_low: 0,
+        base_low: 0,
+        base_middle: 0,
+        access: 0,
+        flags: 0,
+        base_high: 0
+    };
 }
 
 #[repr(packed, C)]
@@ -35,15 +33,14 @@ struct GdtPtr {
 }
 
 impl GdtPtr {
-    const fn new() -> Self {
-        GdtPtr {
-            limit: 0,
-            base: 0,
-        }
-    }
+    const NULL: Self = Self {
+        limit: 0,
+        base: 0
+    };
 }
 
-static mut GLOBAL_DESCRIPTOR_TABLE: [GdtEntry; 5] = [GdtEntry::new(); 5];
+static mut GLOBAL_DESCRIPTOR_TABLE: [GdtEntry; 5] = [GdtEntry::NULL; 5];
+
 fn set_entry(vector: u8, access: u8, flags: u8) {
     unsafe {
         let gdt = &mut GLOBAL_DESCRIPTOR_TABLE;
@@ -64,7 +61,8 @@ extern "C" {
 pub fn initialize() {
 
     unsafe {
-        let mut gdtpr = GdtPtr::new();
+        let mut gdtpr = GdtPtr::NULL;
+
         gdtpr.limit = (mem::size_of::<GdtEntry>() * 5 - 1) as u16;
         gdtpr.base = &GLOBAL_DESCRIPTOR_TABLE as *const _ as u64;
 
