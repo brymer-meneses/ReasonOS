@@ -2,6 +2,7 @@
 
 use core::arch::asm;
 
+#[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct Context {
     pub r15: u64,
@@ -29,7 +30,6 @@ pub struct Context {
     pub iret_ss: u64,
 }
 
-
 pub fn halt() -> ! {
     unsafe {
         loop {
@@ -46,21 +46,25 @@ pub fn hcf() -> ! {
 }
 
 #[inline(always)]
-pub unsafe fn outb(port: u16, value: u8) {
-    asm!(
-       "out dx, al",
-       in("dx") port,
-       in("al") value,
-    );
+pub fn outb(port: u16, value: u8) {
+    unsafe {
+        asm!(
+           "out dx, al",
+           in("dx") port,
+           in("al") value,
+        );
+    }
 }
 
 #[inline(always)]
-pub unsafe fn inb(port: u16) -> u8 {
+pub fn inb(port: u16) -> u8 {
     let data: u8;
-    asm!(
-       "in dx, al",
-       in("dx") port,
-       out("al") data,
-    );
+    unsafe {
+        asm!(
+           "in dx, al",
+           in("dx") port,
+           out("al") data,
+        );
+    }
     return data;
 }
