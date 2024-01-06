@@ -1,3 +1,4 @@
+
 const PORT: u16 = 0x3f8;
 
 use core::fmt;
@@ -17,16 +18,18 @@ struct Writer {
 
 impl Writer {
     fn initialize(&self) {
-        cpu::outb(self.port + 1, 0x00);
-        cpu::outb(self.port + 3, 0x80);
-        cpu::outb(self.port + 0, 0x03);
-        cpu::outb(self.port + 1, 0x00);
-        cpu::outb(self.port + 3, 0x03);
-        cpu::outb(self.port + 2, 0xC7);
-        cpu::outb(self.port + 4, 0x0B);
-        cpu::outb(self.port + 4, 0x1E);
-        cpu::outb(self.port + 0, 0xAE);
-        cpu::outb(self.port + 4, 0x0F);
+        unsafe {
+            cpu::outb(self.port + 1, 0x00);
+            cpu::outb(self.port + 3, 0x80);
+            cpu::outb(self.port + 0, 0x03);
+            cpu::outb(self.port + 1, 0x00);
+            cpu::outb(self.port + 3, 0x03);
+            cpu::outb(self.port + 2, 0xC7);
+            cpu::outb(self.port + 4, 0x0B);
+            cpu::outb(self.port + 4, 0x1E);
+            cpu::outb(self.port + 0, 0xAE);
+            cpu::outb(self.port + 4, 0x0F);
+        }
     }
 
     fn write_character(&self, character: char) {
@@ -34,7 +37,9 @@ impl Writer {
             return;
         }
 
-        cpu::outb(PORT, character as u8);
+        unsafe { 
+            cpu::outb(PORT, character as u8); 
+        }
     }
 
     fn write_string(&self, string: &str) {
@@ -64,10 +69,4 @@ macro_rules! print {
     ($($arg:tt)*) => ($crate::serial::_write( format_args!($($arg)*)));
 }
 
-macro_rules! println {
-    () => ($crate::serial::print!("\n"));
-    ($($arg:tt)*) => ($crate::serial::print!("{}\n", format_args!($($arg)*)));
-}
-
 pub(crate) use print;
-pub(crate) use println;

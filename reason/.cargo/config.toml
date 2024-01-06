@@ -1,8 +1,2 @@
-[unstable]
-build-std = ["core", "compiler_builtins", "alloc"]
-build-std-features = ["compiler-builtins-mem"]
-
 [build]
-target= "./.cargo/x86_64-reason_os.json"
-target-dir="../build/reason"
-rustflags = ["-Cforce-frame-pointers=yes"]
+target= "x86_64-unknown-none"

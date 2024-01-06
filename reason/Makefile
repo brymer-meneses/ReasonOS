@@ -9,8 +9,8 @@ ifeq ($(RUST_PROFILE),dev)
 endif
 
 all:
-	cargo build --profile release
-	cp ../build/reason/x86_64-reason_os/$(RUST_PROFILE_SUBDIR)/reason ../build/kernel
+	cargo build --target x86_64-unknown-none --profile $(RUST_PROFILE) --target-dir=../build/reason
+	cp ../build/reason/x86_64-unknown-none/$(RUST_PROFILE_SUBDIR)/reason ../build/kernel
 
 clean:
 	cargo clean

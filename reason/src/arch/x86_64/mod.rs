@@ -1,10 +1,5 @@
-pub mod cpu;
+
 pub mod interrupt;
+pub mod cpu;
 
-mod idt;
-mod gdt;
 
-pub fn initialize() {
-    gdt::initialize();
-    idt::initialize();
-}
