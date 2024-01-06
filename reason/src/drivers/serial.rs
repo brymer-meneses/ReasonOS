@@ -33,7 +33,6 @@ impl Writer {
         if character == '\0' {
             return;
         }
-
         cpu::outb(PORT, character as u8);
     }
 

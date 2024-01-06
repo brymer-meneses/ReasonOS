@@ -24,6 +24,15 @@ impl GdtEntry {
         flags: 0,
         base_high: 0
     };
+
+    fn set_entry(&mut self, access: u8, flags: u8) {
+        self.base_low = 0x0000;
+        self.base_middle = 0x00;
+        self.base_high = 0x00;
+        self.limit_low = 0x0000;
+        self.access = access;
+        self.flags = flags;
+    }
 }
 
 #[repr(packed, C)]
@@ -41,40 +50,25 @@ impl GdtPtr {
 
 static mut GLOBAL_DESCRIPTOR_TABLE: [GdtEntry; 5] = [GdtEntry::NULL; 5];
 
-fn set_entry(vector: u8, access: u8, flags: u8) {
-    unsafe {
-        let gdt = &mut GLOBAL_DESCRIPTOR_TABLE;
-        let vector = vector as usize;
-        gdt[vector].base_low = 0x0000;
-        gdt[vector].base_middle = 0x00;
-        gdt[vector].base_high = 0x00;
-        gdt[vector].limit_low = 0x0000;
-        gdt[vector].access = access;
-        gdt[vector].flags = flags;
-    }
-}
 
 extern "C" {
     fn load_gdt(ptr: *const GdtPtr);
 }
 
 pub fn initialize() {
-
     unsafe {
         let mut gdtpr = GdtPtr::NULL;
 
         gdtpr.limit = (mem::size_of::<GdtEntry>() * 5 - 1) as u16;
         gdtpr.base = &GLOBAL_DESCRIPTOR_TABLE as *const _ as u64;
 
-        set_entry(0, 0, 0);
-        set_entry(1, 0x9A, 0xA0);
-        set_entry(2, 0x92, 0xC0);
-        set_entry(3, 0xFA, 0xA0);
-        set_entry(4, 0xF2, 0xC0);
+        GLOBAL_DESCRIPTOR_TABLE[0].set_entry(0, 0);
+        GLOBAL_DESCRIPTOR_TABLE[1].set_entry(0x9A, 0xA0);
+        GLOBAL_DESCRIPTOR_TABLE[2].set_entry(0x92, 0xC0);
+        GLOBAL_DESCRIPTOR_TABLE[3].set_entry(0xFA, 0xA0);
+        GLOBAL_DESCRIPTOR_TABLE[4].set_entry(0xF2, 0xC0);
 
         load_gdt(&gdtpr); 
         log::info!("Initialized GDT at 0x{:016X}", &GLOBAL_DESCRIPTOR_TABLE as *const _ as u64);
     };
-
-
 }

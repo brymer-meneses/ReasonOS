@@ -11,8 +11,6 @@ use drivers::serial;
 use arch::cpu;
 use misc::log;
 
-use core::arch::asm;
-
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     serial::print!("\x1b[31m{}\x1B[0m\n", info);
@@ -27,8 +25,6 @@ unsafe extern "C" fn _start() -> ! {
     arch::initialize();
 
     log::info!("Successfully initialized kernel!");
-
-    asm!("int 0");
 
     cpu::halt();
 }
