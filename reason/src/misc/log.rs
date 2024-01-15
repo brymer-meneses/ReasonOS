@@ -1,15 +1,33 @@
 #![allow(unused_macros, unused_imports)]
 
 macro_rules! debug {
-    ($($arg:tt)*) => ($crate::serial::print!("[\x1b[33m DEBUG \x1B[0m]: {}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => {
+        {
+            use $crate::misc::colored::Colored;
+            use $crate::misc::colored::Color;
+            ($crate::serial::print!("{} {} {} {}\n", "[".fg(Color::Gray), "DEBG".fg(Color::Yellow), "]:".fg(Color::Gray),  format_args!($($arg)*)))
+        }
+    };
 }
 
 macro_rules! warning {
-    ($($arg:tt)*) => ($crate::serial::print!("[\x1b[31m WARN \x1B[0m]: {}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => {
+        {
+            use $crate::misc::colored::Colored;
+            use $crate::misc::colored::Color;
+            ($crate::serial::print!("{} {} {} {}\n", "[".fg(Color::Gray), "WARN".fg(Color::Red), "]:".fg(Color::Gray),  format_args!($($arg)*)))
+        }
+    };
 }
 
 macro_rules! info {
-    ($($arg:tt)*) => ($crate::serial::print!("[\x1b[36m INFO \x1B[0m]: {}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => {
+        {
+            use $crate::misc::colored::Colored;
+            use $crate::misc::colored::Color;
+            ($crate::serial::print!("{} {} {} {}\n", "[".fg(Color::Gray), "INFO".fg(Color::Blue), "]:".fg(Color::Gray),  format_args!($($arg)*)))
+        }
+    };
 }
 
 pub(crate) use debug;

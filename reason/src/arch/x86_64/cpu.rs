@@ -3,7 +3,7 @@
 use core::arch::asm;
 
 #[derive(Clone, Copy)]
-#[repr(C, packed)]
+#[repr(C)]
 pub struct Context {
     pub r15: u64,
     pub r14: u64,
@@ -57,6 +57,18 @@ pub fn outb(port: u16, value: u8) {
 }
 
 #[inline(always)]
+pub fn read_cr3() -> u64 {
+    let value;
+    unsafe {
+        asm!(
+            "mov {}, cr3",
+            out(reg) value
+        );
+    }
+    return value;
+}
+
+#[inline(always)]
 pub fn inb(port: u16) -> u8 {
     let data: u8;
     unsafe {
@@ -66,5 +78,5 @@ pub fn inb(port: u16) -> u8 {
            out("al") data,
         );
     }
-    return data;
+    data
 }

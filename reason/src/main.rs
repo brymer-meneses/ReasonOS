@@ -1,8 +1,12 @@
+#![feature(non_null_convenience)]
+
 #![no_std]
 #![no_main]
 
 mod arch;
+mod boot;
 mod drivers;
+mod memory;
 mod misc;
 
 use drivers::framebuffer;
@@ -20,11 +24,14 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 #[no_mangle]
 unsafe extern "C" fn _start() -> ! {
     serial::initialize();
+    boot::initialize();
+
     framebuffer::initialize();
 
     arch::initialize();
+    memory::initialize();
 
-    log::info!("Successfully initialized kernel!");
+    log::info!("Successfully initialized kernel");
 
     cpu::halt();
 }

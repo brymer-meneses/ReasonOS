@@ -1,6 +1,6 @@
+use core::mem;
 use lazy_static::lazy_static;
 use spin::Mutex;
-use core::mem;
 
 use crate::log;
 
@@ -22,7 +22,7 @@ impl GdtEntry {
         base_middle: 0,
         access: 0,
         flags: 0,
-        base_high: 0
+        base_high: 0,
     };
 
     fn set_entry(&mut self, access: u8, flags: u8) {
@@ -42,14 +42,10 @@ struct GdtPtr {
 }
 
 impl GdtPtr {
-    const NULL: Self = Self {
-        limit: 0,
-        base: 0
-    };
+    const NULL: Self = Self { limit: 0, base: 0 };
 }
 
 static mut GLOBAL_DESCRIPTOR_TABLE: [GdtEntry; 5] = [GdtEntry::NULL; 5];
-
 
 extern "C" {
     fn load_gdt(ptr: *const GdtPtr);
@@ -68,7 +64,10 @@ pub fn initialize() {
         GLOBAL_DESCRIPTOR_TABLE[3].set_entry(0xFA, 0xA0);
         GLOBAL_DESCRIPTOR_TABLE[4].set_entry(0xF2, 0xC0);
 
-        load_gdt(&gdtpr); 
-        log::info!("Initialized GDT at 0x{:016X}", &GLOBAL_DESCRIPTOR_TABLE as *const _ as u64);
+        load_gdt(&gdtpr);
+        log::info!(
+            "Initialized GDT at 0x{:016X}",
+            &GLOBAL_DESCRIPTOR_TABLE as *const _ as u64
+        );
     };
 }

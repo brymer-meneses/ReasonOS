@@ -2,6 +2,7 @@
 QEMUFLAGS := \
 	-serial stdio \
 	-no-reboot \
+	-display none \
 	-D qemu-log.txt \
 	-d int -M smm=off \
 

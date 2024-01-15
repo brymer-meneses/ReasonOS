@@ -1,7 +1,6 @@
-
-use core::ptr::NonNull;
-use core::mem;
 use core::arch::asm;
+use core::mem;
+use core::ptr::NonNull;
 
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -29,7 +28,7 @@ impl IdtEntry {
         attributes: 0,
         isr_mid: 0,
         isr_high: 0,
-        reserved: 0
+        reserved: 0,
     };
 }
 
@@ -53,10 +52,7 @@ struct IdtPtr {
 }
 
 impl IdtPtr {
-    const NULL: Self = Self {
-        limit: 0,
-        base: 0
-    };
+    const NULL: Self = Self { limit: 0, base: 0 };
 }
 
 const IDT_ENTRIES: usize = 256;
@@ -64,8 +60,8 @@ const IDT_ENTRIES: usize = 256;
 static mut INTERRUPT_DESCRIPTOR_TABLE: [IdtEntry; IDT_ENTRIES] = [IdtEntry::NULL; IDT_ENTRIES];
 
 extern "C" {
-    static INTERRUPT_HANDLERS: [extern fn() -> !; IDT_ENTRIES];
-} 
+    static INTERRUPT_HANDLERS: [extern "C" fn() -> !; IDT_ENTRIES];
+}
 
 pub fn initialize() {
     let mut idtptr = IdtPtr::NULL;

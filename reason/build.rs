@@ -1,4 +1,3 @@
-
 use std::error::Error;
 use walkdir::WalkDir;
 
@@ -27,7 +26,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             _ => (),
         }
-
     }
 
     println!("cargo:rerun-if-changed=.cargo/kernel.ld");
