@@ -102,14 +102,14 @@ impl BitmapInstallable for MemmapEntry {
     }
 }
 
-pub struct BitmapAllocator<'a> {
-    response: Option<&'a MemmapResponse>,
+pub struct BitmapAllocator {
+    response: Option<&'static MemmapResponse>,
 }
 
-unsafe impl<'a> Send for BitmapAllocator<'a> {}
+unsafe impl Send for BitmapAllocator {}
 
-impl<'a> BitmapAllocator<'a> {
-    pub fn initialize(&mut self, memmap: &'a MemmapResponse) {
+impl BitmapAllocator  {
+    pub fn initialize(&mut self, memmap: &'static MemmapResponse) {
         let entry_count = memmap.entry_count;
         let entries = &memmap.entries;
 
@@ -184,7 +184,7 @@ impl<'a> BitmapAllocator<'a> {
         panic!("Tried to free an invalid address 0x{:016X?}", addr);
     }
 
-    pub fn new() -> BitmapAllocator<'a> {
+    pub fn new() -> BitmapAllocator {
         BitmapAllocator { response: None }
     }
 

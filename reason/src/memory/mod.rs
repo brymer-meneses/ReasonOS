@@ -16,7 +16,7 @@ use vmm::{VirtualMemoryManager, VirtualMemoryFlags};
 use spin::Mutex;
 
 lazy_static! {
-    pub static ref PHYSICAL_MEMORY_MANAGER: Mutex<BitmapAllocator<'static>> = Mutex::new(BitmapAllocator::new());
+    pub static ref PHYSICAL_MEMORY_MANAGER: Mutex<BitmapAllocator> = Mutex::new(BitmapAllocator::new());
     pub static ref VIRTUAL_MEMORY_MANAGER: Mutex<VirtualMemoryManager> = Mutex::new(VirtualMemoryManager::NULL);
 }
 
