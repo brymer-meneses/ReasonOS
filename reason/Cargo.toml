@@ -10,8 +10,8 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
+bitflags = "2.4.1"
 limine = "0.1.12"
-nostd_color = "0.1.0"
 spin = "0.9.8"
 
 [dependencies.lazy_static]

@@ -1,12 +1,12 @@
 #![allow(unused)]
 
+use core::ptr::NonNull;
 use lazy_static::lazy_static;
 use spin::Mutex;
 
 use crate::boot::MEMORY_MAP_REQUEST;
 use crate::memory::bitmap_allocator::BitmapAllocator;
 use crate::misc::log;
-use core::ptr::NonNull;
 
 lazy_static! {
     static ref ALLOCATOR: Mutex<BitmapAllocator<'static>> = Mutex::new(BitmapAllocator::new());
@@ -26,7 +26,12 @@ pub fn initialize() {
 
 pub fn allocate_page() -> Option<NonNull<u64>> {
     let mut allocator = ALLOCATOR.lock();
+    unsafe { allocator.allocate_page() }
+}
+
+pub fn free_page(address: NonNull<u64>) {
+    let mut allocator = ALLOCATOR.lock();
     unsafe {
-        allocator.allocate_page()
+        allocator.free_page(address);
     }
 }

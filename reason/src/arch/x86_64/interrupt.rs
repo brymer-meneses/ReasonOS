@@ -12,7 +12,8 @@ lazy_static! {
 }
 
 pub fn set_interrupt_handler(vector: usize, handler: InterruptHandler) {
-    (HANDLERS.lock())[vector] = Some(handler);
+    let mut handlers = HANDLERS.lock();
+    handlers[vector] = Some(handler);
     log::debug!("Set handler for vector 0x{:0X}", vector);
 }
 

@@ -65,7 +65,19 @@ pub fn read_cr3() -> u64 {
             out(reg) value
         );
     }
-    return value;
+    value
+}
+
+#[inline(always)]
+pub fn read_cr2() -> u64 {
+    let value;
+    unsafe {
+        asm!(
+            "mov {}, cr2",
+            out(reg) value
+        );
+    }
+    value
 }
 
 #[inline(always)]

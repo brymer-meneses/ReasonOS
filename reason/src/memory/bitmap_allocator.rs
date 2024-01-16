@@ -1,19 +1,18 @@
 #![allow(unused)]
 
-use limine::{MemmapEntry, MemmapResponse, MemoryMapEntryType};
-use core::ptr::NonNull;
 use core::mem;
+use core::ptr::NonNull;
+use limine::{MemmapEntry, MemmapResponse, MemoryMapEntryType};
 
 use crate::arch::paging::PAGE_SIZE;
-use crate::misc::log;
 use crate::boot::HHDM_OFFSET;
-
+use crate::misc::log;
 
 #[derive(Debug)]
 struct Bitmap {
-    last_index_used: u64,
-    used_pages: u64,
-    total_pages: u64,
+    last_index_used: usize,
+    used_pages: usize,
+    total_pages: usize,
     data: *mut u8,
 }
 
@@ -22,8 +21,7 @@ impl Bitmap {
         let row = index / 8;
         let col = index % 8;
 
-        let data = self.data as u64 as *mut u8;
-        let value = data.add(row);
+        let value = self.data.add(row);
 
         *value |= 1 << col;
 
@@ -40,14 +38,33 @@ impl Bitmap {
         self.used_pages -= 1;
     }
 
-    unsafe fn is_full(&self) -> bool {
+    fn is_used(&self, index: usize) -> bool {
+        let row = index / 8;
+        let col = index % 8;
+
+        let value = unsafe { self.data.add(row).read() };
+        return (value >> col as usize) & 1 == 1;
+    }
+
+    fn is_full(&self) -> bool {
         self.total_pages == self.used_pages
     }
 
     fn get_free_index(&mut self) -> Option<usize> {
-        if self.last_index_used < self.total_pages {
+        while self.used_pages < self.total_pages {
+
+            if self.last_index_used > self.used_pages {
+                self.last_index_used = 0;
+            }
+
+            if !self.is_used(self.last_index_used) {
+                unsafe { self.set_used(self.last_index_used); }
+
+                self.last_index_used += 1;
+                return Some(self.last_index_used - 1);
+            }
+
             self.last_index_used += 1;
-            return Some(self.last_index_used as usize);
         }
 
         None
@@ -57,18 +74,18 @@ impl Bitmap {
 static BITMAP_SIZE: u64 = mem::size_of::<Bitmap>() as u64;
 
 trait BitmapInstallable {
-    unsafe fn get_bitmap(&self) -> &mut Bitmap;
+    unsafe fn get_bitmap(&self) -> NonNull<Bitmap>;
     unsafe fn install(&mut self);
 }
 
 impl BitmapInstallable for MemmapEntry {
     unsafe fn install(&mut self) {
-        let bitmap = self.get_bitmap();
+        let bitmap = self.get_bitmap().as_mut();
         let total_pages = self.len / PAGE_SIZE;
         let reserved_pages_for_bitmap = (total_pages + BITMAP_SIZE.div_ceil(PAGE_SIZE)).div_ceil(8);
-        
-        bitmap.total_pages = total_pages;
-        bitmap.last_index_used = reserved_pages_for_bitmap;
+
+        bitmap.total_pages = total_pages as usize;
+        bitmap.last_index_used = reserved_pages_for_bitmap as usize;
         bitmap.used_pages = 0;
         bitmap.data = (self.base + BITMAP_SIZE + HHDM_OFFSET) as *mut u8;
 
@@ -77,13 +94,13 @@ impl BitmapInstallable for MemmapEntry {
         }
     }
 
-    unsafe fn get_bitmap(&self) -> &mut Bitmap {
-        return ((self.base + HHDM_OFFSET) as *mut Bitmap).as_mut().unwrap();
+    unsafe fn get_bitmap(&self) -> NonNull<Bitmap> {
+        NonNull::new_unchecked((self.base + HHDM_OFFSET) as *mut Bitmap)
     }
 }
 
 pub struct BitmapAllocator<'a> {
-    response: Option<&'a MemmapResponse>
+    response: Option<&'a MemmapResponse>,
 }
 
 unsafe impl<'a> Send for BitmapAllocator<'a> {}
@@ -100,8 +117,6 @@ impl<'a> BitmapAllocator<'a> {
                 let entry = entries.as_ptr().add(i).as_mut().unwrap();
                 if entry.typ == MemoryMapEntryType::Usable {
                     entry.install();
-                    let bitmap = entry.get_bitmap();
-                    log::debug!("{:?}", bitmap);
                 }
             }
         }
@@ -125,18 +140,17 @@ impl<'a> BitmapAllocator<'a> {
             }
 
             // skip full entries
-            let bitmap = entry.get_bitmap();
+            let bitmap = entry.get_bitmap().as_mut();
             if bitmap.is_full() {
                 continue;
             }
 
-            let index = bitmap.get_free_index().unwrap();
-            bitmap.set_used(index);
-
-            let address = entry.base + index as u64 * PAGE_SIZE + HHDM_OFFSET;
+            let index = bitmap.get_free_index().expect("Failed to get free index");
+            let address = entry.base + index as u64 * PAGE_SIZE;
             return Some(NonNull::new_unchecked(address as *mut u64));
         }
-        return None;
+
+        None
     }
 
     pub unsafe fn free_page(&mut self, addr: NonNull<u64>) {
@@ -153,26 +167,33 @@ impl<'a> BitmapAllocator<'a> {
                 continue;
             }
 
-            let bitmap = entry.get_bitmap();
-            if entry.base > addr && addr < entry.base + entry.len {
-                let mut index = 0;
-                loop {
-                    if addr == index * PAGE_SIZE {
-                        bitmap.set_free(index as usize);
-                        break;
-                    }
-                    index += 1;
+            let bitmap = entry.get_bitmap().as_mut();
+
+            // can't be equal since bitmap is `installed` at the beginning of each entry
+            if entry.base > addr && addr <= entry.base + entry.len {
+                if let Some(index) = get_index_from_address(entry, addr) {
+                    bitmap.set_free(index);
+                    return;
                 }
-                break;
             }
         }
 
-        panic!("Tried to free an invalid address");
+        panic!("Tried to free an invalid address 0x{:016X?}", addr);
     }
 
     pub fn new() -> BitmapAllocator<'a> {
-        BitmapAllocator {
-            response: None
-        }
+        BitmapAllocator { response: None }
     }
+
+}
+
+const fn get_index_from_address(entry: &MemmapEntry, addr: u64) -> Option<usize> {
+    let mut index = 0;
+    while index * PAGE_SIZE < entry.base + entry.len {
+        if index * PAGE_SIZE == addr {
+            return Some(index as usize);
+        }
+        index += 1;
+    }
+    None
 }
