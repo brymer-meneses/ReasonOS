@@ -3,7 +3,8 @@
 use crate::arch::cpu::{self, Context};
 use crate::arch::interrupt;
 use crate::boot::HHDM_OFFSET;
-use crate::memory::pmm;
+
+use crate::memory::PHYSICAL_MEMORY_MANAGER;
 use crate::memory::vmm::VirtualMemoryFlags;
 use crate::misc::log;
 
@@ -66,7 +67,7 @@ pub unsafe fn unmap(pml4: *mut u64, virtual_addr: u64, physical_addr: u64) {
 
     let addr = pml1.add(pml1_index).as_ref().unwrap() & PTE_ADDRESS_MASK;
 
-    pmm::free_page(NonNull::new_unchecked(addr as *mut u64));
+    PHYSICAL_MEMORY_MANAGER.lock().free_page(NonNull::new_unchecked(addr as *mut u64));
 
     pml1.add(pml1_index).write(0);
 
@@ -133,7 +134,7 @@ unsafe fn get_next_level(
         panic!("Tried to get the next level of a page table");
     }
 
-    let page = pmm::allocate_page()
+    let page = PHYSICAL_MEMORY_MANAGER.lock().allocate_page()
         .expect("Failed to allocate memory")
         .as_ptr() as u64;
 

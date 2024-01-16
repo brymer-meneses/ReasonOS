@@ -72,9 +72,10 @@ pub fn initialize() {
             INTERRUPT_DESCRIPTOR_TABLE[index].set_entry(handler as u64, 0x8E);
         }
         load_idt(&idtptr);
+
+        log::info!("Initialized IDT at 0x{:016X}", &INTERRUPT_DESCRIPTOR_TABLE as *const _ as u64);
     }
 
-    log::info!("Initialized IDT");
 }
 
 #[inline(always)]

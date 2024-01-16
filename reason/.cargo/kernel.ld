@@ -23,19 +23,31 @@ SECTIONS
     /* that is the beginning of the region. */
     . = 0xffffffff80000000;
 
+    __kernel_start_address = .;
+
+    __text_start_address = .;
+
     .text : {
         *(.text .text.*)
     } :text
 
+    __text_end_address = .;
+
     /* Move to the next memory page for .rodata */
     . += CONSTANT(MAXPAGESIZE);
+
+    __rodata_start_address = .;
 
     .rodata : {
         *(.rodata .rodata.*)
     } :rodata
 
+    __rodata_end_address = .;
+
     /* Move to the next memory page for .data */
     . += CONSTANT(MAXPAGESIZE);
+
+    __data_start_address = .;
 
     .data : {
         *(.data .data.*)
@@ -54,6 +66,10 @@ SECTIONS
         *(.bss .bss.*)
         *(COMMON)
     } :data
+
+    __data_end_address = .;
+
+    __kernel_end_address  = .;
 
     /* Discard .note.* and .eh_frame since they may cause issues on some hosts. */
     /DISCARD/ : {
