@@ -15,3 +15,7 @@ all:
 clean:
 	cargo clean
 	rm -rf kernel
+
+prepare:
+	cargo clippy --fix --bin reason --allow-dirty
+	cargo fmt 

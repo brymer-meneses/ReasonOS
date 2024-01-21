@@ -14,11 +14,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let mut build = nasm_rs::Build::new();
 
                 build
-                    .file(&path)
+                    .file(path)
                     .flag("-felf64")
                     .target("x86_64-unknown-none")
                     .compile(object_file)
-                    .expect(&format!("failed to compile assembly {:?}", path));
+                    .unwrap_or_else(|_| panic!("failed to compile assembly {:?}", path));
 
                 println!("cargo:rustc-link-lib=static={}", object_file);
                 println!("cargo:rerun-if-changed={}", path.display());

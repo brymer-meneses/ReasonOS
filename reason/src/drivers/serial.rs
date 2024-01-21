@@ -2,14 +2,11 @@ const PORT: u16 = 0x3f8;
 
 use core::fmt;
 use core::fmt::Write;
-use lazy_static::lazy_static;
 use spin::Mutex;
 
 use crate::arch::cpu;
 
-lazy_static! {
-    static ref SERIAL_WRITER: Mutex<Writer> = Mutex::new(Writer { port: PORT });
-}
+static SERIAL_WRITER: Mutex<Writer> = Mutex::new(Writer { port: PORT });
 
 struct Writer {
     port: u16,
@@ -19,13 +16,13 @@ impl Writer {
     fn initialize(&self) {
         cpu::outb(self.port + 1, 0x00);
         cpu::outb(self.port + 3, 0x80);
-        cpu::outb(self.port + 0, 0x03);
+        cpu::outb(self.port, 0x03);
         cpu::outb(self.port + 1, 0x00);
         cpu::outb(self.port + 3, 0x03);
         cpu::outb(self.port + 2, 0xC7);
         cpu::outb(self.port + 4, 0x0B);
         cpu::outb(self.port + 4, 0x1E);
-        cpu::outb(self.port + 0, 0xAE);
+        cpu::outb(self.port, 0xAE);
         cpu::outb(self.port + 4, 0x0F);
     }
 

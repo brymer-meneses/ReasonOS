@@ -1,15 +1,13 @@
 #![allow(unused)]
 
-use limine::{MemmapEntry, MemmapResponse, MemoryMapEntryType};
-use core::ptr::NonNull;
-use lazy_static::lazy_static;
-use spin::Mutex;
 use core::mem;
+use core::ptr::NonNull;
+use limine::{MemmapEntry, MemmapResponse, MemoryMapEntryType};
+use spin::Mutex;
 
 use crate::arch::paging::PAGE_SIZE;
 use crate::boot::HHDM_OFFSET;
 use crate::misc::log;
-
 
 #[derive(Debug)]
 struct Bitmap {
@@ -46,7 +44,7 @@ impl Bitmap {
         let col = index % 8;
 
         let value = unsafe { self.data.add(row).read() };
-        return (value >> col as usize) & 1 == 1;
+        (value >> col) & 1 == 1
     }
 
     fn is_full(&self) -> bool {
@@ -55,13 +53,14 @@ impl Bitmap {
 
     fn get_free_index(&mut self) -> Option<usize> {
         while self.used_pages < self.total_pages {
-
             if self.last_index_used > self.used_pages {
                 self.last_index_used = 0;
             }
 
             if !self.is_used(self.last_index_used) {
-                unsafe { self.set_used(self.last_index_used); }
+                unsafe {
+                    self.set_used(self.last_index_used);
+                }
 
                 self.last_index_used += 1;
                 return Some(self.last_index_used - 1);
@@ -102,18 +101,14 @@ impl BitmapInstallable for MemmapEntry {
     }
 }
 
-pub struct BitmapAllocator {
-    response: Option<&'static MemmapResponse>,
-}
+pub struct BitmapAllocator(&'static MemmapResponse);
 
 unsafe impl Send for BitmapAllocator {}
 
-impl BitmapAllocator  {
-    pub fn initialize(&mut self, memmap: &'static MemmapResponse) {
+impl BitmapAllocator {
+    pub fn new(memmap: &'static MemmapResponse) -> Self {
         let entry_count = memmap.entry_count;
         let entries = &memmap.entries;
-
-        self.response = Some(memmap);
 
         for i in 0..entry_count as usize {
             unsafe {
@@ -123,14 +118,12 @@ impl BitmapAllocator  {
                 }
             }
         }
+
+        BitmapAllocator(memmap)
     }
 
     pub unsafe fn allocate_page(&mut self) -> Option<NonNull<u64>> {
-        if self.response.is_none() {
-            panic!("Bitmap allocator is not initialized");
-        }
-
-        let response = self.response.unwrap();
+        let response = self.0;
         let entry_count = response.entry_count;
         let entries = &response.entries;
 
@@ -159,7 +152,7 @@ impl BitmapAllocator  {
     pub unsafe fn free_page(&mut self, addr: NonNull<u64>) {
         let addr: u64 = addr.as_ptr() as u64;
 
-        let response = self.response.unwrap();
+        let response = self.0;
         let entry_count = response.entry_count;
         let entries = &response.entries;
 
@@ -182,10 +175,6 @@ impl BitmapAllocator  {
         }
 
         panic!("Tried to free an invalid address 0x{:016X?}", addr);
-    }
-
-    pub fn new() -> BitmapAllocator {
-        BitmapAllocator { response: None }
     }
 
 }

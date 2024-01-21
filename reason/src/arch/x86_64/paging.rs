@@ -4,14 +4,14 @@ use crate::arch::cpu::{self, Context};
 use crate::arch::interrupt;
 use crate::boot::HHDM_OFFSET;
 
-use crate::memory::PHYSICAL_MEMORY_MANAGER;
 use crate::memory::vmm::VirtualMemoryFlags;
+use crate::memory::PHYSICAL_MEMORY_MANAGER;
 use crate::misc::log;
 
 use bitflags::bitflags;
 use core::arch::asm;
-use core::ptr::NonNull;
 use core::intrinsics::write_bytes;
+use core::ptr::NonNull;
 
 pub const PAGE_SIZE: u64 = 4096;
 
@@ -45,7 +45,11 @@ pub unsafe fn map(
 
     invalidate_tlb_cache(virtual_addr);
 
-    log::debug!("Successfully mapped physical address 0x{:016X} to virtual address 0x{:016X}", physical_addr, virtual_addr);
+    log::debug!(
+        "Successfully mapped physical address 0x{:016X} to virtual address 0x{:016X}",
+        physical_addr,
+        virtual_addr
+    );
 }
 
 pub unsafe fn unmap(pml4: *mut u64, virtual_addr: u64, physical_addr: u64) {
@@ -67,7 +71,9 @@ pub unsafe fn unmap(pml4: *mut u64, virtual_addr: u64, physical_addr: u64) {
 
     let addr = pml1.add(pml1_index).as_ref().unwrap() & PTE_ADDRESS_MASK;
 
-    PHYSICAL_MEMORY_MANAGER.lock().free_page(NonNull::new_unchecked(addr as *mut u64));
+    PHYSICAL_MEMORY_MANAGER
+        .lock()
+        .free_page(NonNull::new_unchecked(addr as *mut u64));
 
     pml1.add(pml1_index).write(0);
 
@@ -82,14 +88,22 @@ pub fn initialize() {
 fn page_fault_handler(ctx: *const Context) {
     unsafe {
         let ctx = ctx.read();
-        panic!("Page Fault accessed memory: 0x{:016X} at RIP: 0x{:016X}", cpu::read_cr2(), ctx.iret_rip);
+        panic!(
+            "Page Fault accessed memory: 0x{:016X} at RIP: 0x{:016X}",
+            cpu::read_cr2(),
+            ctx.iret_rip
+        );
     }
 }
 
 fn general_page_fault_handler(ctx: *const Context) {
     unsafe {
         let ctx = ctx.read();
-        panic!("General Page Fault accessed memory: 0x{:016X} at RIP: 0x{:016X}", cpu::read_cr2(), ctx.iret_rip);
+        panic!(
+            "General Page Fault accessed memory: 0x{:016X} at RIP: 0x{:016X}",
+            cpu::read_cr2(),
+            ctx.iret_rip
+        );
     }
 }
 
@@ -114,7 +128,7 @@ fn set_flags(mut addr: u64, flags: VirtualMemoryFlags) -> u64 {
         addr |= PTE_NOT_EXECUTABLE;
     }
 
-    return addr;
+    addr
 }
 
 unsafe fn get_next_level(
@@ -134,7 +148,9 @@ unsafe fn get_next_level(
         panic!("Tried to get the next level of a page table");
     }
 
-    let page = PHYSICAL_MEMORY_MANAGER.lock().allocate_page()
+    let page = PHYSICAL_MEMORY_MANAGER
+        .lock()
+        .allocate_page()
         .expect("Failed to allocate memory")
         .as_ptr() as u64;
 
@@ -148,11 +164,9 @@ unsafe fn get_next_level(
 
     root.add(index).write(new_level);
 
-    return ((new_level & PTE_ADDRESS_MASK) + HHDM_OFFSET) as *mut u64;
+    ((new_level & PTE_ADDRESS_MASK) + HHDM_OFFSET) as *mut u64
 }
 
 pub fn get_initial_pagemap() -> *mut u64 {
-    unsafe {
-        ((cpu::read_cr3() & PTE_ADDRESS_MASK) + HHDM_OFFSET) as *mut u64
-    }
+    unsafe { ((cpu::read_cr3() & PTE_ADDRESS_MASK) + HHDM_OFFSET) as *mut u64 }
 }

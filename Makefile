@@ -33,6 +33,8 @@ iso: limine kernel
 	./build/limine/limine bios-install build/reason.iso
 	rm -rf build/iso_root
 
+prepare:
+	$(MAKE) -C reason prepare
 
 run: iso
 	qemu-system-x86_64 $(QEMUFLAGS) -cdrom build/reason.iso
