@@ -176,7 +176,6 @@ impl BitmapAllocator {
 
         panic!("Tried to free an invalid address 0x{:016X?}", addr);
     }
-
 }
 
 const fn get_index_from_address(entry: &MemmapEntry, addr: u64) -> Option<usize> {

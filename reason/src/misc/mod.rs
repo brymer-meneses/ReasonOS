@@ -1,8 +1,8 @@
 pub mod colored;
 pub mod log;
 
-use spin::{Mutex, MutexGuard};
 use core::cell::OnceCell;
+use spin::{Mutex, MutexGuard};
 
 #[inline]
 pub const fn align_up(addr: u64, align: u64) -> u64 {
@@ -26,10 +26,9 @@ impl<T> OnceCellMutex<T> {
         self.0.get_or_init(|| Mutex::new(param));
     }
 
-    pub fn lock(&self) -> MutexGuard<T> {
+    pub unsafe fn lock(&self) -> MutexGuard<T> {
         self.0.get().unwrap().lock()
     }
-
 }
 
 unsafe impl<T> Send for OnceCellMutex<T> {}

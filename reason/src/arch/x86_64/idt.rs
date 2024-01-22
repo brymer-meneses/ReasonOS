@@ -2,9 +2,6 @@ use core::arch::asm;
 use core::mem;
 use core::ptr::NonNull;
 
-use lazy_static::lazy_static;
-use spin::Mutex;
-
 use crate::arch::x86_64::interrupt::InterruptHandler;
 use crate::misc::log;
 

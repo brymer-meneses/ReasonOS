@@ -37,20 +37,14 @@ unsafe impl Send for VirtualMemoryManager {}
 unsafe impl Send for VirtualMemoryObject {}
 
 impl VirtualMemoryManager {
-
-    pub fn new(
-        pagemap: NonNull<u64>,
-        base_address: u64,
-        flags: VirtualMemoryFlags,
-    ) -> Self {
-
+    pub fn new(pagemap: NonNull<u64>, base_address: u64, flags: VirtualMemoryFlags) -> Self {
         Self {
             pagemap,
             base_address,
             current_address: base_address,
             flags,
             root_object: None,
-            current_object: None
+            current_object: None,
         }
     }
 

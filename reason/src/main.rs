@@ -32,6 +32,5 @@ unsafe extern "C" fn _start() -> ! {
 
     log::info!("Successfully initialized kernel");
 
-
     cpu::halt();
 }

@@ -1,4 +1,3 @@
-use lazy_static::lazy_static;
 use spin::Mutex;
 
 use crate::arch::cpu::{self, Context};
@@ -7,12 +6,10 @@ use crate::serial::println;
 
 pub type InterruptHandler = unsafe fn(*const Context);
 
-lazy_static! {
-    static ref HANDLERS: Mutex<[Option<InterruptHandler>; 256]> = Mutex::new([None; 256]);
-}
+static mut HANDLERS: Mutex<[Option<InterruptHandler>; 256]> = Mutex::new([None; 256]);
 
 pub fn set_interrupt_handler(vector: usize, handler: InterruptHandler) {
-    let mut handlers = HANDLERS.lock();
+    let mut handlers = unsafe { HANDLERS.lock() };
     handlers[vector] = Some(handler);
     log::debug!("Set handler for vector 0x{:0X}", vector);
 }
@@ -80,7 +77,7 @@ unsafe fn dump_context(ctx: *const Context) {
 
 #[no_mangle]
 extern "C" fn interrupt_dispatch(context: *const Context) {
-    let handlers = HANDLERS.lock();
+    let handlers = unsafe { HANDLERS.lock() };
     unsafe {
         let vector = context.read_volatile().vector;
         if let Some(handler) = handlers[vector as usize] {
