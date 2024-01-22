@@ -84,14 +84,20 @@ trait BitmapInstallable {
 
 impl BitmapInstallable for MemmapEntry {
     unsafe fn install(&mut self) {
-        let bitmap = self.get_bitmap().as_mut();
+        let bitmap = self.get_bitmap().as_ptr();
         let total_pages = self.len / PAGE_SIZE;
         let reserved_pages_for_bitmap = (total_pages + BITMAP_SIZE.div_ceil(PAGE_SIZE)).div_ceil(8);
 
-        bitmap.total_pages = total_pages as usize;
-        bitmap.last_index_used = reserved_pages_for_bitmap as usize;
-        bitmap.used_pages = 0;
-        bitmap.data = (self.base + BITMAP_SIZE + HHDM_OFFSET) as *mut u8;
+        bitmap.write(
+            Bitmap {
+                last_index_used: reserved_pages_for_bitmap as usize,
+                total_pages: total_pages as usize,
+                used_pages: 0,
+                data: (self.base + BITMAP_SIZE + HHDM_OFFSET) as *mut u8
+            }
+        );
+
+        let bitmap = bitmap.as_mut().unwrap();
 
         for i in 0..reserved_pages_for_bitmap as usize {
             bitmap.set_used(i);

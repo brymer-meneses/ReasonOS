@@ -17,7 +17,7 @@ bitflags! {
 }
 
 pub struct VirtualMemoryObject {
-    pub base: u64,
+    pub base: VirtualAddress,
     pub total_pages: usize,
     pub flags: VirtualMemoryFlags,
     pub is_used: bool,
@@ -67,12 +67,15 @@ impl VirtualMemoryManager {
 
         let object = {
             let object = self.current_address.as_addr() as *mut VirtualMemoryObject;
-            let object = object.as_mut().unwrap();
-            object.next = None;
-            object.is_used = true;
-            object.total_pages = pages;
-            object.base =
-                self.current_address.as_addr() + mem::size_of::<VirtualMemoryObject>() as u64;
+
+            object.write(VirtualMemoryObject {
+                next: None,
+                is_used: true,
+                total_pages: pages,
+                base: VirtualAddress::new(self.current_address.as_addr() + mem::size_of::<VirtualMemoryObject>() as u64),
+                flags: self.flags
+            });
+
             Some(NonNull::new_unchecked(object))
         };
 
@@ -103,3 +106,4 @@ impl VirtualMemoryManager {
         panic!("tried to free an invalid object");
     }
 }
+

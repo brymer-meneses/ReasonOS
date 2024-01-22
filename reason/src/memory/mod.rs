@@ -18,11 +18,6 @@ use vmm::{VirtualMemoryFlags, VirtualMemoryManager};
 pub static mut PHYSICAL_MEMORY_MANAGER: OnceCellMutex<BitmapAllocator> = OnceCellMutex::new();
 pub static mut VIRTUAL_MEMORY_MANAGER: OnceCellMutex<VirtualMemoryManager> = OnceCellMutex::new();
 
-extern "C" {
-    static __kernel_end_address: u8;
-    static __kernel_start_address: u8;
-}
-
 pub fn initialize() {
     let memmap = MEMORY_MAP_REQUEST
         .get_response()
@@ -48,4 +43,9 @@ pub fn initialize() {
 
         log::info!("Initialized VMM");
     }
+}
+
+extern "C" {
+    static __kernel_end_address: u8;
+    static __kernel_start_address: u8;
 }

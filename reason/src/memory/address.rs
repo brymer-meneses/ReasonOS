@@ -35,12 +35,6 @@ impl PhysicalAddress {
     }
 }
 
-impl PartialEq<u64> for PhysicalAddress {
-    fn eq(&self, other: &u64) -> bool {
-        self.0 == *other
-    }
-}
-
 impl VirtualAddress {
     pub const fn new(addr: u64) -> Self {
         Self(addr)
@@ -78,3 +72,16 @@ impl fmt::Display for VirtualAddress {
         write!(f, "0x{:016x}", self.0)
     }
 }
+
+impl PartialEq<u64> for PhysicalAddress {
+    fn eq(&self, other: &u64) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialEq<u64> for VirtualAddress {
+    fn eq(&self, other: &u64) -> bool {
+        self.0 == *other
+    }
+}
+
