@@ -1,11 +1,11 @@
-#![allow(unused)]
-
 use crate::arch::cpu::{self, Context};
 use crate::arch::interrupt;
 use crate::boot::HHDM_OFFSET;
 
+use crate::memory::address::{PhysicalAddress, VirtualAddress};
 use crate::memory::vmm::VirtualMemoryFlags;
 use crate::memory::PHYSICAL_MEMORY_MANAGER;
+
 use crate::misc::log;
 
 use bitflags::bitflags;
@@ -22,18 +22,18 @@ const PTE_NOT_EXECUTABLE: u64 = 1 << 63;
 const PTE_ADDRESS_MASK: u64 = 0x000ffffffffff000;
 
 pub unsafe fn map(
-    pml4: *mut u64,
-    virtual_addr: u64,
-    physical_addr: u64,
+    pml4: VirtualAddress,
+    virtual_addr: VirtualAddress,
+    physical_addr: PhysicalAddress,
     flags: VirtualMemoryFlags,
 ) {
-    assert_eq!(virtual_addr % PAGE_SIZE, 0);
-    assert_eq!(physical_addr % PAGE_SIZE, 0);
+    assert!(virtual_addr.is_page_aligned());
+    assert!(physical_addr.is_page_aligned());
 
-    let pml4_index = ((virtual_addr >> 39) & 0x1ff) as usize;
-    let pml3_index = ((virtual_addr >> 30) & 0x1ff) as usize;
-    let pml2_index = ((virtual_addr >> 21) & 0x1ff) as usize;
-    let pml1_index = ((virtual_addr >> 12) & 0x1ff) as usize;
+    let pml4_index = ((virtual_addr.as_addr() >> 39) & 0x1ff) as usize;
+    let pml3_index = ((virtual_addr.as_addr() >> 30) & 0x1ff) as usize;
+    let pml2_index = ((virtual_addr.as_addr() >> 21) & 0x1ff) as usize;
+    let pml1_index = ((virtual_addr.as_addr() >> 12) & 0x1ff) as usize;
 
     let pml3 = get_next_level(pml4, pml4_index, flags, true);
     let pml2 = get_next_level(pml3, pml3_index, flags, true);
@@ -41,27 +41,31 @@ pub unsafe fn map(
 
     let entry = set_flags(physical_addr, flags);
 
-    pml1.add(pml1_index).write(entry);
+    pml1.as_ptr().add(pml1_index).write(entry);
 
     invalidate_tlb_cache(virtual_addr);
 
     log::debug!(
-        "Successfully mapped physical address 0x{:016X} to virtual address 0x{:016X}",
+        "Successfully mapped physical address {} to virtual address {}",
         physical_addr,
         virtual_addr
     );
 }
 
-pub unsafe fn unmap(pml4: *mut u64, virtual_addr: u64, physical_addr: u64) {
-    assert_eq!(virtual_addr % PAGE_SIZE, 0);
-    assert_eq!(physical_addr % PAGE_SIZE, 0);
+pub unsafe fn unmap(
+    pml4: VirtualAddress,
+    virtual_addr: VirtualAddress,
+    physical_addr: PhysicalAddress,
+) {
+    assert!(virtual_addr.is_page_aligned());
+    assert!(physical_addr.is_page_aligned());
 
     let flags = VirtualMemoryFlags::empty();
 
-    let pml4_index = ((virtual_addr >> 39) & 0x1ff) as usize;
-    let pml3_index = ((virtual_addr >> 30) & 0x1ff) as usize;
-    let pml2_index = ((virtual_addr >> 21) & 0x1ff) as usize;
-    let pml1_index = ((virtual_addr >> 12) & 0x1ff) as usize;
+    let pml4_index = ((virtual_addr.as_addr() >> 39) & 0x1ff) as usize;
+    let pml3_index = ((virtual_addr.as_addr() >> 30) & 0x1ff) as usize;
+    let pml2_index = ((virtual_addr.as_addr() >> 21) & 0x1ff) as usize;
+    let pml1_index = ((virtual_addr.as_addr() >> 12) & 0x1ff) as usize;
 
     let pml3 = get_next_level(pml4, pml4_index, flags, false);
     let pml2 = get_next_level(pml3, pml3_index, flags, false);
@@ -69,13 +73,13 @@ pub unsafe fn unmap(pml4: *mut u64, virtual_addr: u64, physical_addr: u64) {
 
     let entry = set_flags(physical_addr, flags);
 
-    let addr = pml1.add(pml1_index).as_ref().unwrap() & PTE_ADDRESS_MASK;
+    let addr = pml1.as_ptr().add(pml1_index).as_ref().unwrap() & PTE_ADDRESS_MASK;
 
     PHYSICAL_MEMORY_MANAGER
         .lock()
-        .free_page(NonNull::new_unchecked(addr as *mut u64));
+        .free_page(PhysicalAddress::new(addr));
 
-    pml1.add(pml1_index).write(0);
+    pml1.as_ptr().add(pml1_index).write(0);
 
     invalidate_tlb_cache(virtual_addr);
 }
@@ -107,15 +111,17 @@ fn general_page_fault_handler(ctx: *const Context) {
     }
 }
 
-fn invalidate_tlb_cache(addr: u64) {
+fn invalidate_tlb_cache(addr: VirtualAddress) {
     unsafe {
         asm!(
             "invlpg [{}]",
-            in(reg) addr
+            in(reg) addr.as_addr()
         );
     }
 }
-fn set_flags(mut addr: u64, flags: VirtualMemoryFlags) -> u64 {
+fn set_flags(addr: PhysicalAddress, flags: VirtualMemoryFlags) -> u64 {
+    let mut addr = addr.as_addr();
+
     addr |= PTE_PRESENT;
 
     if flags.contains(VirtualMemoryFlags::Writeable) {
@@ -132,16 +138,16 @@ fn set_flags(mut addr: u64, flags: VirtualMemoryFlags) -> u64 {
 }
 
 unsafe fn get_next_level(
-    root: *mut u64,
+    root: VirtualAddress,
     index: usize,
     flags: VirtualMemoryFlags,
     should_allocate: bool,
-) -> *mut u64 {
-    let root = root as *mut u64;
+) -> VirtualAddress {
+    let root = root.as_ptr();
     let entry = root.add(index).read();
 
     if entry & PTE_PRESENT != 0 {
-        return ((entry & PTE_ADDRESS_MASK) + HHDM_OFFSET) as *mut u64;
+        return VirtualAddress::new(((entry & PTE_ADDRESS_MASK) + HHDM_OFFSET));
     }
 
     if !should_allocate {
@@ -160,13 +166,13 @@ unsafe fn get_next_level(
     // zero out the newly allocated page-table
     write_bytes((page + HHDM_OFFSET) as *mut u8, 0, PAGE_SIZE as usize);
 
-    let new_level = set_flags(page, flags);
+    let new_level = set_flags(PhysicalAddress::new(page), flags);
 
     root.add(index).write(new_level);
 
-    ((new_level & PTE_ADDRESS_MASK) + HHDM_OFFSET) as *mut u64
+    VirtualAddress::new(((new_level & PTE_ADDRESS_MASK) + HHDM_OFFSET))
 }
 
-pub fn get_initial_pagemap() -> *mut u64 {
-    unsafe { ((cpu::read_cr3() & PTE_ADDRESS_MASK) + HHDM_OFFSET) as *mut u64 }
+pub fn get_initial_pagemap() -> VirtualAddress {
+    unsafe { VirtualAddress::new(((cpu::read_cr3() & PTE_ADDRESS_MASK) + HHDM_OFFSET)) }
 }

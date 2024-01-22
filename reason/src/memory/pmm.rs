@@ -9,6 +9,8 @@ use crate::arch::paging::PAGE_SIZE;
 use crate::boot::HHDM_OFFSET;
 use crate::misc::log;
 
+use crate::memory::address::{PhysicalAddress, VirtualAddress};
+
 #[derive(Debug)]
 struct Bitmap {
     last_index_used: usize,
@@ -73,7 +75,7 @@ impl Bitmap {
     }
 }
 
-static BITMAP_SIZE: u64 = mem::size_of::<Bitmap>() as u64;
+const BITMAP_SIZE: u64 = mem::size_of::<Bitmap>() as u64;
 
 trait BitmapInstallable {
     unsafe fn get_bitmap(&self) -> NonNull<Bitmap>;
@@ -122,7 +124,7 @@ impl BitmapAllocator {
         BitmapAllocator(memmap)
     }
 
-    pub unsafe fn allocate_page(&mut self) -> Option<NonNull<u64>> {
+    pub unsafe fn allocate_page(&mut self) -> Option<PhysicalAddress> {
         let response = self.0;
         let entry_count = response.entry_count;
         let entries = &response.entries;
@@ -143,13 +145,13 @@ impl BitmapAllocator {
 
             let index = bitmap.get_free_index().expect("Failed to get free index");
             let address = entry.base + index as u64 * PAGE_SIZE;
-            return Some(NonNull::new_unchecked(address as *mut u64));
+            return Some(PhysicalAddress::new(address));
         }
-
+        {}
         None
     }
 
-    pub unsafe fn free_page(&mut self, addr: NonNull<u64>) {
+    pub unsafe fn free_page(&mut self, addr: PhysicalAddress) {
         let addr: u64 = addr.as_ptr() as u64;
 
         let response = self.0;
@@ -167,7 +169,7 @@ impl BitmapAllocator {
 
             // can't be equal since bitmap is `installed` at the beginning of each entry
             if entry.base > addr && addr <= entry.base + entry.len {
-                if let Some(index) = get_index_from_address(entry, addr) {
+                if let Some(index) = get_index_from_address(entry, PhysicalAddress::new(addr)) {
                     bitmap.set_free(index);
                     return;
                 }
@@ -178,10 +180,10 @@ impl BitmapAllocator {
     }
 }
 
-const fn get_index_from_address(entry: &MemmapEntry, addr: u64) -> Option<usize> {
+fn get_index_from_address(entry: &MemmapEntry, addr: PhysicalAddress) -> Option<usize> {
     let mut index = 0;
     while index * PAGE_SIZE < entry.base + entry.len {
-        if index * PAGE_SIZE == addr {
+        if addr == index * PAGE_SIZE {
             return Some(index as usize);
         }
         index += 1;

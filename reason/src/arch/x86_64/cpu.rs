@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use core::arch::asm;
 
 #[derive(Clone, Copy)]

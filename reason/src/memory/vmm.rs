@@ -4,6 +4,7 @@ use core::mem;
 use core::ptr::NonNull;
 
 use crate::arch::paging::{self, PAGE_SIZE};
+use crate::memory::address::VirtualAddress;
 use crate::memory::PHYSICAL_MEMORY_MANAGER;
 
 bitflags! {
@@ -26,10 +27,10 @@ pub struct VirtualMemoryObject {
 pub struct VirtualMemoryManager {
     root_object: Option<NonNull<VirtualMemoryObject>>,
     current_object: Option<NonNull<VirtualMemoryObject>>,
-    pagemap: NonNull<u64>,
+    pagemap: VirtualAddress,
 
-    base_address: u64,
-    current_address: u64,
+    base_address: VirtualAddress,
+    current_address: VirtualAddress,
     flags: VirtualMemoryFlags,
 }
 
@@ -37,7 +38,11 @@ unsafe impl Send for VirtualMemoryManager {}
 unsafe impl Send for VirtualMemoryObject {}
 
 impl VirtualMemoryManager {
-    pub fn new(pagemap: NonNull<u64>, base_address: u64, flags: VirtualMemoryFlags) -> Self {
+    pub fn new(
+        pagemap: VirtualAddress,
+        base_address: VirtualAddress,
+        flags: VirtualMemoryFlags,
+    ) -> Self {
         Self {
             pagemap,
             base_address,
@@ -54,22 +59,20 @@ impl VirtualMemoryManager {
                 .lock()
                 .allocate_page()
                 .expect("Can't allocated page");
-            let virtual_address = self.current_address + i as u64 * PAGE_SIZE;
-            paging::map(
-                self.pagemap.as_ptr(),
-                virtual_address,
-                page.as_ptr() as u64,
-                self.flags,
-            );
+
+            let virtual_address =
+                VirtualAddress::new(self.current_address.as_addr() + i as u64 * PAGE_SIZE);
+            paging::map(self.pagemap, virtual_address, page, self.flags);
         }
 
         let object = {
-            let object = self.current_address as *mut VirtualMemoryObject;
+            let object = self.current_address.as_addr() as *mut VirtualMemoryObject;
             let object = object.as_mut().unwrap();
             object.next = None;
             object.is_used = true;
             object.total_pages = pages;
-            object.base = self.current_address + mem::size_of::<VirtualMemoryObject>() as u64;
+            object.base =
+                self.current_address.as_addr() + mem::size_of::<VirtualMemoryObject>() as u64;
             Some(NonNull::new_unchecked(object))
         };
 
@@ -81,7 +84,8 @@ impl VirtualMemoryManager {
             self.current_object = object;
         }
 
-        self.current_address += pages as u64 * PAGE_SIZE;
+        self.current_address =
+            VirtualAddress::new(self.current_address.as_addr() + pages as u64 * PAGE_SIZE);
         object
     }
 
