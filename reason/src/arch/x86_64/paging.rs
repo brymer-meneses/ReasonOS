@@ -21,6 +21,18 @@ const PTE_USER_ACCESSIBLE: u64 = 1 << 2;
 const PTE_NOT_EXECUTABLE: u64 = 1 << 63;
 const PTE_ADDRESS_MASK: u64 = 0x000ffffffffff000;
 
+impl VirtualAddress {
+    const fn get_indexes(&self) -> (usize, usize, usize, usize) {
+        let addr = self.as_addr();
+        (
+            ((addr >> 39) & 0x1ff) as usize,
+            ((addr >> 30) & 0x1ff) as usize,
+            ((addr >> 21) & 0x1ff) as usize,
+            ((addr >> 12) & 0x1ff) as usize,
+        )
+    }
+}
+
 pub unsafe fn map(
     pml4: VirtualAddress,
     virtual_addr: VirtualAddress,
@@ -30,10 +42,7 @@ pub unsafe fn map(
     assert!(virtual_addr.is_page_aligned());
     assert!(physical_addr.is_page_aligned());
 
-    let pml4_index = ((virtual_addr.as_addr() >> 39) & 0x1ff) as usize;
-    let pml3_index = ((virtual_addr.as_addr() >> 30) & 0x1ff) as usize;
-    let pml2_index = ((virtual_addr.as_addr() >> 21) & 0x1ff) as usize;
-    let pml1_index = ((virtual_addr.as_addr() >> 12) & 0x1ff) as usize;
+    let (pml4_index, pml3_index, pml2_index, pml1_index) = virtual_addr.get_indexes();
 
     let pml3 = get_next_level(pml4, pml4_index, flags, true);
     let pml2 = get_next_level(pml3, pml3_index, flags, true);
@@ -62,10 +71,7 @@ pub unsafe fn unmap(
 
     let flags = VirtualMemoryFlags::empty();
 
-    let pml4_index = ((virtual_addr.as_addr() >> 39) & 0x1ff) as usize;
-    let pml3_index = ((virtual_addr.as_addr() >> 30) & 0x1ff) as usize;
-    let pml2_index = ((virtual_addr.as_addr() >> 21) & 0x1ff) as usize;
-    let pml1_index = ((virtual_addr.as_addr() >> 12) & 0x1ff) as usize;
+    let (pml4_index, pml3_index, pml2_index, pml1_index) = virtual_addr.get_indexes();
 
     let pml3 = get_next_level(pml4, pml4_index, flags, false);
     let pml2 = get_next_level(pml3, pml3_index, flags, false);
@@ -120,9 +126,7 @@ fn invalidate_tlb_cache(addr: VirtualAddress) {
     }
 }
 fn set_flags(addr: PhysicalAddress, flags: VirtualMemoryFlags) -> u64 {
-    let mut addr = addr.as_addr();
-
-    addr |= PTE_PRESENT;
+    let mut addr = addr.as_addr() | PTE_PRESENT;
 
     if flags.contains(VirtualMemoryFlags::Writeable) {
         addr |= PTE_WRITEABLE;
@@ -157,16 +161,19 @@ unsafe fn get_next_level(
     let page = PHYSICAL_MEMORY_MANAGER
         .lock()
         .allocate_page()
-        .expect("Failed to allocate memory")
-        .as_ptr() as u64;
+        .expect("Failed to allocate memory");
 
-    assert_eq!(page % PAGE_SIZE, 0);
-    assert_ne!(page, 0);
+    assert!(page.is_page_aligned());
+    assert!(!page.is_null());
 
     // zero out the newly allocated page-table
-    write_bytes((page + HHDM_OFFSET) as *mut u8, 0, PAGE_SIZE as usize);
+    write_bytes(
+        (page.as_addr() + HHDM_OFFSET) as *mut u8,
+        0,
+        PAGE_SIZE as usize,
+    );
 
-    let new_level = set_flags(PhysicalAddress::new(page), flags);
+    let new_level = set_flags(page, flags);
 
     root.add(index).write(new_level);
 

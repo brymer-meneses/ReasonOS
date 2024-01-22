@@ -24,7 +24,10 @@ impl<T> OnceCellMutex<T> {
     }
 
     pub unsafe fn lock(&self) -> MutexGuard<T> {
-        self.0.get().unwrap().lock()
+        self.0
+            .get()
+            .expect("Failed to lock mutex since it is not initialized")
+            .lock()
     }
 }
 

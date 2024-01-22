@@ -1,36 +1,36 @@
-const PORT: u16 = 0x3f8;
-
 use core::fmt;
 use core::fmt::Write;
-use spin::Mutex;
 
 use crate::arch::cpu;
+use crate::misc::utils::OnceCellMutex;
 
-static SERIAL_WRITER: Mutex<Writer> = Mutex::new(Writer { port: PORT });
+static mut SERIAL_WRITER: OnceCellMutex<Writer> = OnceCellMutex::new();
 
 struct Writer {
     port: u16,
 }
 
 impl Writer {
-    fn initialize(&self) {
-        cpu::outb(self.port + 1, 0x00);
-        cpu::outb(self.port + 3, 0x80);
-        cpu::outb(self.port, 0x03);
-        cpu::outb(self.port + 1, 0x00);
-        cpu::outb(self.port + 3, 0x03);
-        cpu::outb(self.port + 2, 0xC7);
-        cpu::outb(self.port + 4, 0x0B);
-        cpu::outb(self.port + 4, 0x1E);
-        cpu::outb(self.port, 0xAE);
-        cpu::outb(self.port + 4, 0x0F);
+    fn new(port: u16) -> Self {
+        cpu::outb(port + 1, 0x00);
+        cpu::outb(port + 3, 0x80);
+        cpu::outb(port, 0x03);
+        cpu::outb(port + 1, 0x00);
+        cpu::outb(port + 3, 0x03);
+        cpu::outb(port + 2, 0xC7);
+        cpu::outb(port + 4, 0x0B);
+        cpu::outb(port + 4, 0x1E);
+        cpu::outb(port, 0xAE);
+        cpu::outb(port + 4, 0x0F);
+
+        Writer { port }
     }
 
     fn write_character(&self, character: char) {
         if character == '\0' {
             return;
         }
-        cpu::outb(PORT, character as u8);
+        cpu::outb(self.port, character as u8);
     }
 
     fn write_string(&self, string: &str) {
@@ -48,12 +48,16 @@ impl fmt::Write for Writer {
 }
 
 pub fn initialize() {
-    SERIAL_WRITER.lock().initialize();
+    unsafe {
+        SERIAL_WRITER.set(Writer::new(0x3f8));
+    }
 }
 
 #[doc(hidden)]
 pub fn _write(args: fmt::Arguments) {
-    let _ = SERIAL_WRITER.lock().write_fmt(args);
+    unsafe {
+        let _ = SERIAL_WRITER.lock().write_fmt(args);
+    }
 }
 
 macro_rules! print {

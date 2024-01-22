@@ -29,6 +29,10 @@ impl PhysicalAddress {
     pub const fn is_page_aligned(&self) -> bool {
         self.0 % PAGE_SIZE == 0
     }
+
+    pub const fn is_null(&self) -> bool {
+        self.0 == 0
+    }
 }
 
 impl PartialEq<u64> for PhysicalAddress {
@@ -57,16 +61,20 @@ impl VirtualAddress {
     pub const fn is_page_aligned(&self) -> bool {
         self.0 % PAGE_SIZE == 0
     }
+
+    pub const fn is_null(&self) -> bool {
+        self.0 == 0
+    }
 }
 
 impl fmt::Display for PhysicalAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{:016X}", self.0)
+        write!(f, "0x{:016x}", self.0)
     }
 }
 
 impl fmt::Display for VirtualAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{:016X}", self.0)
+        write!(f, "0x{:016x}", self.0)
     }
 }

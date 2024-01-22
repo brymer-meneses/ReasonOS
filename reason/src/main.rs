@@ -12,7 +12,6 @@ use drivers::framebuffer;
 use drivers::serial;
 
 use arch::cpu;
-
 use misc::log;
 
 #[panic_handler]
