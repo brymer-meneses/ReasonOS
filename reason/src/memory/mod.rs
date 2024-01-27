@@ -1,30 +1,41 @@
 #![allow(unused)]
 
-pub mod address;
-pub mod pmm;
-pub mod vmm;
+use bitflags::bitflags;
 
-use crate::arch::paging::PAGE_SIZE;
+mod address;
+mod heap;
+mod pmm;
+mod vmm;
+
+use crate::arch::paging::{self, PAGE_SIZE};
 use crate::boot::MEMORY_MAP_REQUEST;
 use crate::misc::log;
 use crate::misc::utils::{align_down, OnceCellMutex};
 
-use crate::arch::paging;
-use crate::memory::address::VirtualAddress;
-
 use pmm::BitmapAllocator;
-use vmm::{VirtualMemoryFlags, VirtualMemoryManager};
+use vmm::VirtualMemoryManager;
+
+pub use address::{PhysicalAddress, VirtualAddress};
 
 pub static mut PHYSICAL_MEMORY_MANAGER: OnceCellMutex<BitmapAllocator> = OnceCellMutex::new();
 pub static mut VIRTUAL_MEMORY_MANAGER: OnceCellMutex<VirtualMemoryManager> = OnceCellMutex::new();
 
-pub fn initialize() {
-    let memmap = MEMORY_MAP_REQUEST
-        .get_response()
-        .get()
-        .expect("Failed to get memory map.");
+bitflags! {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub struct VirtualMemoryFlags: u8 {
+        const Writeable = 1 << 0;
+        const Executable = 1 << 1;
+        const UserAccessible = 1 << 2;
+    }
+}
 
+pub fn initialize() {
+    // Physical Memory Manager
     unsafe {
+        let memmap = MEMORY_MAP_REQUEST
+            .get_response()
+            .get()
+            .expect("Failed to get memory map.");
         PHYSICAL_MEMORY_MANAGER.set(BitmapAllocator::new(memmap));
         log::info!("Initialized PMM");
 

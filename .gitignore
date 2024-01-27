@@ -2,3 +2,6 @@
 build/
 /**/.DS_Store
 qemu-log.txt
+
+.zed
+.vscode

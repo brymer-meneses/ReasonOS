@@ -84,4 +84,3 @@ impl PartialEq<u64> for VirtualAddress {
         self.0 == *other
     }
 }
-

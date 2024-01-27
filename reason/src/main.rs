@@ -1,9 +1,9 @@
-#![feature(non_null_convenience)]
 #![no_std]
 #![no_main]
 
 mod arch;
 mod boot;
+mod data_structures;
 mod drivers;
 mod memory;
 mod misc;

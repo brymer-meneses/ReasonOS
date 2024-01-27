@@ -2,16 +2,17 @@ use crate::arch::cpu::{self, Context};
 use crate::arch::interrupt;
 use crate::boot::HHDM_OFFSET;
 
-use crate::memory::address::{PhysicalAddress, VirtualAddress};
-use crate::memory::vmm::VirtualMemoryFlags;
+use crate::memory::VirtualMemoryFlags;
 use crate::memory::PHYSICAL_MEMORY_MANAGER;
+use crate::memory::{PhysicalAddress, VirtualAddress};
+
+use core::ptr::NonNull;
 
 use crate::misc::log;
 
 use bitflags::bitflags;
 use core::arch::asm;
 use core::intrinsics::write_bytes;
-use core::ptr::NonNull;
 
 pub const PAGE_SIZE: u64 = 4096;
 
@@ -51,8 +52,6 @@ pub unsafe fn map(
     let entry = set_flags(physical_addr, flags);
 
     pml1.as_ptr().add(pml1_index).write(entry);
-
-    invalidate_tlb_cache(virtual_addr);
 
     log::debug!(
         "Successfully mapped physical address {} to virtual address {}",
@@ -121,10 +120,11 @@ fn invalidate_tlb_cache(addr: VirtualAddress) {
     unsafe {
         asm!(
             "invlpg [{}]",
-            in(reg) addr.as_addr()
+            in(reg) addr.as_addr(),
         );
     }
 }
+
 fn set_flags(addr: PhysicalAddress, flags: VirtualMemoryFlags) -> u64 {
     let mut addr = addr.as_addr() | PTE_PRESENT;
 
