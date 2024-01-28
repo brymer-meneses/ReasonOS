@@ -6,13 +6,15 @@ use crate::arch;
 use crate::arch::paging::PAGE_SIZE;
 use crate::data_structures::{SinglyLinkedList, SinglyLinkedListNode};
 use crate::memory::PHYSICAL_MEMORY_MANAGER;
+use crate::misc::log;
+use crate::misc::utils::size;
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub struct VirtualMemoryObject {
-    base: VirtualAddress,
-    flags: VirtualMemoryFlags,
-    length: u64,
-    is_used: bool,
+    pub base: VirtualAddress,
+    pub flags: VirtualMemoryFlags,
+    pub length: u64,
+    pub is_used: bool,
 }
 
 pub struct VirtualMemoryManager {
@@ -20,7 +22,7 @@ pub struct VirtualMemoryManager {
     flags: VirtualMemoryFlags,
     base_address: VirtualAddress,
     current_address: VirtualAddress,
-    objects: SinglyLinkedList<VirtualMemoryObject>,
+    pub objects: SinglyLinkedList<VirtualMemoryObject>,
 }
 
 impl VirtualMemoryManager {
@@ -29,6 +31,9 @@ impl VirtualMemoryManager {
         base_address: VirtualAddress,
         flags: VirtualMemoryFlags,
     ) -> Self {
+        assert!(base_address.is_page_aligned());
+        assert!(pagemap.is_page_aligned());
+
         Self {
             pagemap,
             base_address,
@@ -38,45 +43,32 @@ impl VirtualMemoryManager {
         }
     }
 
-    pub unsafe fn allocate_object(&mut self, pages: usize) -> Option<&VirtualMemoryObject> {
+    pub unsafe fn allocate_object(&mut self, size: u64) -> Option<&mut VirtualMemoryObject> {
+        // TODO: check for free object first
+
+        const NODE_SIZE: u64 = size!(SinglyLinkedListNode<VirtualMemoryObject>);
+        let pages = (size + NODE_SIZE).div_ceil(PAGE_SIZE);
+
         for i in 0..pages {
+            let current_address = self.current_address + i * PAGE_SIZE;
             let page = PHYSICAL_MEMORY_MANAGER
                 .lock()
                 .allocate_page()
-                .expect("Page Allocation Failed");
-
-            let virtual_address = VirtualAddress::new(
-                self.current_address.as_addr() + size_of::<VirtualMemoryObject>() as u64,
-            );
-
-            arch::paging::map(
-                self.pagemap,
-                virtual_address,
-                page,
-                VirtualMemoryFlags::Writeable | VirtualMemoryFlags::Executable,
-            )
+                .expect("Failed to allocate page");
+            arch::paging::map(self.pagemap, current_address, page, self.flags)
         }
 
-        let object = {
-            let ptr =
-                self.current_address.as_addr() as *mut SinglyLinkedListNode<VirtualMemoryObject>;
+        // we add `NODE_SIZE` to `self.current_address` since this is where we store the
+        // singly-list node
+        let vm_object_base = self.current_address + NODE_SIZE;
 
-            self.objects.append(
-                VirtualMemoryObject {
-                    is_used: true,
-                    length: pages as u64 * PAGE_SIZE,
-                    flags: self.flags,
-                    base: VirtualAddress::new(
-                        self.current_address.as_addr() + size_of::<VirtualMemoryObject>() as u64,
-                    ),
-                },
-                ptr,
-            );
+        self.objects.append(
+            VirtualMemoryObject::new(vm_object_base, pages * PAGE_SIZE, self.flags),
+            self.current_address,
+        );
 
-            self.objects.tail()
-        };
-
-        object
+        self.current_address += pages * PAGE_SIZE;
+        self.objects.tail_mut()
     }
 
     pub unsafe fn free_object(&mut self, object: &VirtualMemoryObject) {
@@ -86,9 +78,17 @@ impl VirtualMemoryManager {
                 (*node).data.is_used = false;
             },
         );
-
         todo!()
     }
 }
 
-impl VirtualMemoryObject {}
+impl VirtualMemoryObject {
+    pub fn new(base: VirtualAddress, length: u64, flags: VirtualMemoryFlags) -> Self {
+        Self {
+            is_used: true,
+            length,
+            flags,
+            base,
+        }
+    }
+}

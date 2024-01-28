@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use crate::arch::paging::PAGE_SIZE;
-use core::fmt;
+use core::{fmt, ops::Add, ops::AddAssign};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalAddress(u64);
@@ -82,5 +82,30 @@ impl PartialEq<u64> for PhysicalAddress {
 impl PartialEq<u64> for VirtualAddress {
     fn eq(&self, other: &u64) -> bool {
         self.0 == *other
+    }
+}
+
+impl AddAssign<u64> for VirtualAddress {
+    fn add_assign(&mut self, rhs: u64) {
+        self.0 += rhs;
+    }
+}
+
+impl AddAssign<u64> for PhysicalAddress {
+    fn add_assign(&mut self, rhs: u64) {
+        self.0 += rhs;
+    }
+}
+impl Add<u64> for VirtualAddress {
+    type Output = VirtualAddress;
+    fn add(self, rhs: u64) -> Self::Output {
+        VirtualAddress::new(self.0 + rhs)
+    }
+}
+
+impl Add<u64> for PhysicalAddress {
+    type Output = PhysicalAddress;
+    fn add(self, rhs: u64) -> Self::Output {
+        PhysicalAddress::new(self.0 + rhs)
     }
 }

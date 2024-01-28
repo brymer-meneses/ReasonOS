@@ -29,6 +29,10 @@ unsafe extern "C" fn _start() -> ! {
     arch::initialize();
     memory::initialize();
 
+    let alloc = memory::KERNEL_HEAP_ALLOCATOR.lock().alloc(1).as_addr() as *mut u8;
+    *alloc = 255;
+
+    log::info!("Allocation Value {}", *alloc);
     log::info!("Successfully initialized kernel");
 
     cpu::halt();

@@ -33,3 +33,11 @@ impl<T> OnceCellMutex<T> {
 
 unsafe impl<T> Send for OnceCellMutex<T> {}
 unsafe impl<T> Sync for OnceCellMutex<T> {}
+
+macro_rules! size {
+    ($t:ty) => {
+        core::mem::size_of::<$t>() as u64
+    };
+}
+
+pub(crate) use size;

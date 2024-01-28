@@ -17,11 +17,14 @@ use vmm::VirtualMemoryManager;
 
 pub use address::{PhysicalAddress, VirtualAddress};
 
+use self::heap::ExplicitFreeList;
+
 pub static mut PHYSICAL_MEMORY_MANAGER: OnceCellMutex<BitmapAllocator> = OnceCellMutex::new();
 pub static mut VIRTUAL_MEMORY_MANAGER: OnceCellMutex<VirtualMemoryManager> = OnceCellMutex::new();
+pub static mut KERNEL_HEAP_ALLOCATOR: OnceCellMutex<ExplicitFreeList> = OnceCellMutex::new();
 
 bitflags! {
-    #[derive(Clone, Copy, PartialEq, Eq)]
+    #[derive(Clone, Copy)]
     pub struct VirtualMemoryFlags: u8 {
         const Writeable = 1 << 0;
         const Executable = 1 << 1;
@@ -30,12 +33,12 @@ bitflags! {
 }
 
 pub fn initialize() {
-    // Physical Memory Manager
     unsafe {
         let memmap = MEMORY_MAP_REQUEST
             .get_response()
             .get()
             .expect("Failed to get memory map.");
+
         PHYSICAL_MEMORY_MANAGER.set(BitmapAllocator::new(memmap));
         log::info!("Initialized PMM");
 
@@ -53,6 +56,10 @@ pub fn initialize() {
         ));
 
         log::info!("Initialized VMM");
+
+        KERNEL_HEAP_ALLOCATOR.set(ExplicitFreeList::new(&VIRTUAL_MEMORY_MANAGER));
+
+        log::info!("Initialized Kernel Heap");
     }
 }
 

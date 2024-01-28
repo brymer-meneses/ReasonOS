@@ -1,5 +1,7 @@
 use core::ptr::NonNull;
 
+use crate::memory::VirtualAddress;
+
 pub struct DoublyLinkedList<T> {
     pub head: Option<NonNull<DoublyLinkedListNode<T>>>,
     pub tail: Option<NonNull<DoublyLinkedListNode<T>>>,
@@ -11,6 +13,7 @@ pub struct SinglyLinkedList<T> {
     tail: Option<NonNull<SinglyLinkedListNode<T>>>,
     pub length: usize,
 }
+
 pub struct DoublyLinkedListNode<T> {
     pub next: Option<NonNull<DoublyLinkedListNode<T>>>,
     pub prev: Option<NonNull<DoublyLinkedListNode<T>>>,
@@ -31,9 +34,10 @@ impl<T> DoublyLinkedList<T> {
         }
     }
 
-    pub unsafe fn append(&mut self, elem: T, ptr: *mut DoublyLinkedListNode<T>) {
+    pub unsafe fn append(&mut self, data: T, address: VirtualAddress) {
+        let ptr = address.as_addr() as *mut DoublyLinkedListNode<T>;
         ptr.write(DoublyLinkedListNode {
-            data: elem,
+            data,
             next: None,
             prev: None,
         });
@@ -148,7 +152,11 @@ impl<T> SinglyLinkedList<T> {
         }
     }
 
-    pub unsafe fn append(&mut self, data: T, ptr: *mut SinglyLinkedListNode<T>) {
+    /// # Safety:
+    /// - Ensure that the `address` passed has enough capacity for
+    /// `size_of<SinglyLinkedListNode<T>`
+    pub unsafe fn append(&mut self, data: T, address: VirtualAddress) {
+        let ptr = address.as_addr() as *mut SinglyLinkedListNode<T>;
         ptr.write(SinglyLinkedListNode { data, next: None });
         let node = Some(NonNull::new_unchecked(ptr));
 
