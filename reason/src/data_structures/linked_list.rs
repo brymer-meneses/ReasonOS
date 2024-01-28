@@ -1,14 +1,20 @@
 use core::ptr::NonNull;
 
+pub struct DoublyLinkedList<T> {
+    pub head: Option<NonNull<DoublyLinkedListNode<T>>>,
+    pub tail: Option<NonNull<DoublyLinkedListNode<T>>>,
+    pub length: usize,
+}
+
+pub struct SinglyLinkedList<T> {
+    head: Option<NonNull<SinglyLinkedListNode<T>>>,
+    tail: Option<NonNull<SinglyLinkedListNode<T>>>,
+    pub length: usize,
+}
 pub struct DoublyLinkedListNode<T> {
     pub next: Option<NonNull<DoublyLinkedListNode<T>>>,
     pub prev: Option<NonNull<DoublyLinkedListNode<T>>>,
     pub data: T,
-}
-
-pub struct DoublyLinkedList<T> {
-    pub head: Option<NonNull<DoublyLinkedListNode<T>>>,
-    pub tail: Option<NonNull<DoublyLinkedListNode<T>>>,
 }
 
 pub struct SinglyLinkedListNode<T> {
@@ -16,44 +22,12 @@ pub struct SinglyLinkedListNode<T> {
     pub data: T,
 }
 
-pub struct SinglyLinkedList<T> {
-    head: Option<NonNull<SinglyLinkedListNode<T>>>,
-    tail: Option<NonNull<SinglyLinkedListNode<T>>>,
-}
-
 impl<T> DoublyLinkedList<T> {
     pub fn new() -> Self {
         Self {
             head: None,
             tail: None,
-        }
-    }
-
-    pub fn tail(&mut self) -> Option<&T> {
-        match self.tail {
-            None => None,
-            Some(mut tail) => unsafe { Some(&tail.as_mut().data) },
-        }
-    }
-
-    pub fn head(&mut self) -> Option<&T> {
-        match self.head {
-            None => None,
-            Some(mut head) => unsafe { Some(&head.as_mut().data) },
-        }
-    }
-
-    pub fn tail_mut(&mut self) -> Option<&mut T> {
-        match self.tail {
-            None => None,
-            Some(mut tail) => unsafe { Some(&mut tail.as_mut().data) },
-        }
-    }
-
-    pub fn head_mut(&mut self) -> Option<&mut T> {
-        match self.head {
-            None => None,
-            Some(mut head) => unsafe { Some(&mut head.as_mut().data) },
+            length: 0,
         }
     }
 
@@ -66,20 +40,22 @@ impl<T> DoublyLinkedList<T> {
 
         let mut new_node = NonNull::new_unchecked(ptr);
 
-        if self.head.is_none() {
-            self.head = Some(new_node);
-            self.tail = Some(new_node);
-            return;
+        match self.tail {
+            None => {
+                self.head = Some(new_node);
+                self.tail = Some(new_node);
+            }
+            Some(mut node) => {
+                new_node.as_mut().prev = self.tail;
+                new_node.as_mut().next = None;
+
+                node.as_mut().next = Some(new_node);
+
+                self.tail = Some(new_node);
+            }
         }
 
-        if let Some(mut node) = self.tail {
-            new_node.as_mut().prev = self.tail;
-            new_node.as_mut().next = None;
-
-            node.as_mut().next = Some(new_node);
-
-            self.tail = Some(new_node);
-        }
+        self.length += 1;
     }
 
     pub unsafe fn remove(
@@ -87,6 +63,8 @@ impl<T> DoublyLinkedList<T> {
         compare: impl Fn(&T) -> bool,
         free_function: unsafe fn(*mut DoublyLinkedListNode<T>),
     ) {
+        assert_ne!(self.length, 0);
+
         let mut node = self.head;
 
         while let Some(mut node_ptr) = node {
@@ -120,16 +98,15 @@ impl<T> DoublyLinkedList<T> {
             }
 
             free_function(node_ptr.as_ptr());
+            self.length -= 1;
             break;
         }
     }
-}
 
-impl<T> SinglyLinkedList<T> {
-    pub fn new() -> Self {
-        Self {
-            head: None,
-            tail: None,
+    pub fn iter(&self) -> DoublyLinkedListIterator<T> {
+        DoublyLinkedListIterator {
+            list: self,
+            current: self.head,
         }
     }
 
@@ -160,6 +137,16 @@ impl<T> SinglyLinkedList<T> {
             Some(mut head) => unsafe { Some(&mut head.as_mut().data) },
         }
     }
+}
+
+impl<T> SinglyLinkedList<T> {
+    pub fn new() -> Self {
+        Self {
+            head: None,
+            length: 0,
+            tail: None,
+        }
+    }
 
     pub unsafe fn append(&mut self, data: T, ptr: *mut SinglyLinkedListNode<T>) {
         ptr.write(SinglyLinkedListNode { data, next: None });
@@ -176,6 +163,8 @@ impl<T> SinglyLinkedList<T> {
                 self.tail = node;
             }
         };
+
+        self.length += 1;
     }
 
     pub unsafe fn remove(
@@ -183,6 +172,7 @@ impl<T> SinglyLinkedList<T> {
         compare: impl Fn(&T) -> bool,
         free_function: unsafe fn(*mut SinglyLinkedListNode<T>),
     ) {
+        assert_ne!(self.length, 0);
         let mut node = self.head;
         let mut previous_node = None;
 
@@ -213,7 +203,80 @@ impl<T> SinglyLinkedList<T> {
                 }
             }
 
+            self.length -= 1;
             free_function(node_ptr.as_ptr());
+            break;
+        }
+    }
+
+    pub fn iter(&self) -> SinglyLinkedListIterator<T> {
+        SinglyLinkedListIterator {
+            list: self,
+            current: self.head,
+        }
+    }
+
+    pub fn tail(&mut self) -> Option<&T> {
+        match self.tail {
+            None => None,
+            Some(mut tail) => unsafe { Some(&tail.as_mut().data) },
+        }
+    }
+
+    pub fn head(&mut self) -> Option<&T> {
+        match self.head {
+            None => None,
+            Some(mut head) => unsafe { Some(&head.as_mut().data) },
+        }
+    }
+
+    pub fn tail_mut(&mut self) -> Option<&mut T> {
+        match self.tail {
+            None => None,
+            Some(mut tail) => unsafe { Some(&mut tail.as_mut().data) },
+        }
+    }
+
+    pub fn head_mut(&mut self) -> Option<&mut T> {
+        match self.head {
+            None => None,
+            Some(mut head) => unsafe { Some(&mut head.as_mut().data) },
+        }
+    }
+}
+
+pub struct DoublyLinkedListIterator<'a, T> {
+    list: &'a DoublyLinkedList<T>,
+    current: Option<NonNull<DoublyLinkedListNode<T>>>,
+}
+
+pub struct SinglyLinkedListIterator<'a, T> {
+    list: &'a SinglyLinkedList<T>,
+    current: Option<NonNull<SinglyLinkedListNode<T>>>,
+}
+
+impl<'a, T> Iterator for DoublyLinkedListIterator<'a, T> {
+    type Item = NonNull<DoublyLinkedListNode<T>>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.current {
+            None => None,
+            Some(mut node_ptr) => {
+                self.current = unsafe { node_ptr.as_mut().next };
+                Some(node_ptr)
+            }
+        }
+    }
+}
+
+impl<'a, T> Iterator for SinglyLinkedListIterator<'a, T> {
+    type Item = NonNull<SinglyLinkedListNode<T>>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.current {
+            None => None,
+            Some(mut node_ptr) => {
+                self.current = unsafe { node_ptr.as_mut().next };
+                Some(node_ptr)
+            }
         }
     }
 }
