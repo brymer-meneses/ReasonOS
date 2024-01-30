@@ -1,5 +1,8 @@
 #![no_std]
 #![no_main]
+#![feature(custom_test_frameworks)]
+#![test_runner(crate::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
 mod arch;
 mod boot;
@@ -14,12 +17,6 @@ use drivers::serial;
 use arch::cpu;
 use misc::log;
 
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    serial::print!("\x1b[31m{}\x1B[0m\n", info);
-    cpu::hcf();
-}
-
 #[no_mangle]
 unsafe extern "C" fn _start() -> ! {
     serial::initialize();
@@ -29,11 +26,22 @@ unsafe extern "C" fn _start() -> ! {
     arch::initialize();
     memory::initialize();
 
-    let alloc = memory::KERNEL_HEAP_ALLOCATOR.lock().alloc(1).as_addr() as *mut u8;
-    *alloc = 255;
-
-    log::info!("Allocation Value {}", *alloc);
-    log::info!("Successfully initialized kernel");
+    #[cfg(test)]
+    test_main();
 
     cpu::halt();
+}
+
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    serial::print!("\x1b[31m{}\x1B[0m\n", info);
+    cpu::hcf();
+}
+
+#[cfg(test)]
+fn test_runner(tests: &[&dyn Fn()]) {
+    serial::println!("Running {} tests", tests.len());
+    for test in tests {
+        test();
+    }
 }
