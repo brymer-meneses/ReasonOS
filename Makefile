@@ -21,23 +21,25 @@ ifeq ($(PROFILE), debug)
 else ifeq ($(PROFILE), release)
 	CARGO_FLAGS += --profile release
 else
-  $(error Invalid argument $(PROFILE) for `PROFILE`. Must be either `release` or `debug`.)
+	$(error Invalid argument $(PROFILE) for `PROFILE`. Must be either `release` or `debug`.)
 endif
 
 ifeq ($(MODE), test) 
 	CARGO_FLAGS += --tests
 else ifneq ($(MODE), default)
-  $(error Invalid argument $(MODE) for `MODE`. Must be either `test` or `default`.)
+	$(error Invalid argument $(MODE) for `MODE`. Must be either `test` or `default`.)
 endif
 
 setup:
-	@-git clone https://github.com/limine-bootloader/limine.git --branch=v6.x-branch-binary --depth=1 build/limine
-	@$(MAKE) -C build/limine
-
-KERNEL_PATH := $(shell cargo build $(CARGO_FLAGS) --message-format=json | jq -r 'select(.executable) | .executable')
-kernel: setup
 	@mkdir -p build/bin
-	@cp $(KERNEL_PATH) build/bin/kernel
+ifeq ($(wildcard build/limine/.),)
+	git clone https://github.com/limine-bootloader/limine.git --branch=v6.x-branch-binary --depth=1 build/limine
+	@$(MAKE) -C build/limine
+endif
+
+kernel: setup
+	@export KERNEL_EXECUTABLE=$$(cargo build $(CARGO_FLAGS) --message-format=json | jq -r 'select(.executable) | .executable'); \
+	cp $$KERNEL_EXECUTABLE build/bin/kernel
 
 run: iso 
 	@qemu-system-x86_64 $(QEMUFLAGS) -cdrom build/reason.iso
