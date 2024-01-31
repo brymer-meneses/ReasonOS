@@ -54,7 +54,7 @@ pub unsafe fn map(
     pml1.as_ptr().add(pml1_index).write(entry);
 
     log::debug!(
-        "Successfully mapped physical address {} to virtual address {}",
+        "[paging] Successfully mapped physical address {} to virtual address {}",
         physical_addr,
         virtual_addr
     );

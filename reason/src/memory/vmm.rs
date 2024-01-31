@@ -10,19 +10,29 @@ use crate::misc::log;
 use crate::misc::utils::size;
 
 #[derive(Clone, Copy)]
-pub struct VirtualMemoryObject {
+pub struct VirtualMemoryRegion {
+    /// start of the `free` virtual memory address that we can put data from this is
+    /// guaranteed to **NOT** be where the instance of `VirtualMemoryRegion` is stored
     pub base: VirtualAddress,
+
+    /// flags of the virtual memory
     pub flags: VirtualMemoryFlags,
+
+    /// total length of the virtual memory region this includes the part where this instance
+    /// of `VirtualMemoryRegion` is stored
     pub length: u64,
+
+    /// is the virtual memory region used
     pub is_used: bool,
 }
 
+/// Manages memory with greater than page size length
 pub struct VirtualMemoryManager {
     pagemap: VirtualAddress,
     flags: VirtualMemoryFlags,
     base_address: VirtualAddress,
     current_address: VirtualAddress,
-    pub objects: SinglyLinkedList<VirtualMemoryObject>,
+    pub regions: SinglyLinkedList<VirtualMemoryRegion>,
 }
 
 impl VirtualMemoryManager {
@@ -38,15 +48,15 @@ impl VirtualMemoryManager {
             pagemap,
             base_address,
             current_address: base_address,
-            objects: SinglyLinkedList::new(),
+            regions: SinglyLinkedList::new(),
             flags,
         }
     }
 
-    pub unsafe fn allocate_object(&mut self, size: u64) -> Option<&mut VirtualMemoryObject> {
-        // TODO: check for free object first
+    pub unsafe fn allocate_region(&mut self, size: u64) -> Option<*mut VirtualMemoryRegion> {
+        // TODO: check for free region first
 
-        const NODE_SIZE: u64 = size!(SinglyLinkedListNode<VirtualMemoryObject>);
+        const NODE_SIZE: u64 = size!(SinglyLinkedListNode<VirtualMemoryRegion>);
         let pages = (size + NODE_SIZE).div_ceil(PAGE_SIZE);
 
         for i in 0..pages {
@@ -60,20 +70,22 @@ impl VirtualMemoryManager {
 
         // we add `NODE_SIZE` to `self.current_address` since this is where we store the
         // singly-list node
-        let vm_object_base = self.current_address + NODE_SIZE;
+        let vm_region_base = self.current_address + NODE_SIZE;
 
-        self.objects.append(
-            VirtualMemoryObject::new(vm_object_base, pages * PAGE_SIZE, self.flags),
+        self.regions.append(
             self.current_address,
+            VirtualMemoryRegion::new(vm_region_base, pages * PAGE_SIZE, self.flags),
         );
 
+        // log::debug!("[vmm] Allocate vm region with size {}", pages * PAGE_SIZE);
+
         self.current_address += pages * PAGE_SIZE;
-        self.objects.tail_mut()
+        self.regions.tail_mut()
     }
 
-    pub unsafe fn free_object(&mut self, object: &VirtualMemoryObject) {
-        self.objects.remove(
-            |o| object.base == o.base,
+    pub unsafe fn free_region(&mut self, region: &VirtualMemoryRegion) {
+        self.regions.remove(
+            |other| region.base == other.base,
             |node| {
                 (*node).data.is_used = false;
             },
@@ -82,7 +94,7 @@ impl VirtualMemoryManager {
     }
 }
 
-impl VirtualMemoryObject {
+impl VirtualMemoryRegion {
     pub fn new(base: VirtualAddress, length: u64, flags: VirtualMemoryFlags) -> Self {
         Self {
             is_used: true,

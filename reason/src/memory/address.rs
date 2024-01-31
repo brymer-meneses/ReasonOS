@@ -3,10 +3,10 @@
 use crate::{arch::paging::PAGE_SIZE, misc::colored::Colorize};
 use core::{fmt, ops::Add, ops::AddAssign};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq)]
 pub struct PhysicalAddress(u64);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq)]
 pub struct VirtualAddress(u64);
 
 impl PhysicalAddress {

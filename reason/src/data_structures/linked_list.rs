@@ -1,6 +1,8 @@
 use core::ptr::NonNull;
+use core::ptr::{addr_of, addr_of_mut};
 
 use crate::memory::VirtualAddress;
+use crate::misc::utils::size;
 
 pub struct DoublyLinkedList<T> {
     pub head: Option<NonNull<DoublyLinkedListNode<T>>>,
@@ -34,9 +36,9 @@ impl<T> DoublyLinkedList<T> {
         }
     }
 
-    pub unsafe fn append(&mut self, data: T, address: VirtualAddress) {
+    pub unsafe fn append(&mut self, address: VirtualAddress, data: T) {
         let ptr = address.as_addr() as *mut DoublyLinkedListNode<T>;
-        ptr.write(DoublyLinkedListNode {
+        ptr.write_unaligned(DoublyLinkedListNode {
             data,
             next: None,
             prev: None,
@@ -114,32 +116,36 @@ impl<T> DoublyLinkedList<T> {
         }
     }
 
-    pub fn tail(&mut self) -> Option<&T> {
+    pub fn tail(&mut self) -> Option<*const T> {
         match self.tail {
             None => None,
-            Some(mut tail) => unsafe { Some(&tail.as_mut().data) },
+            Some(tail) => unsafe { Some(addr_of!(tail.as_ref().data)) },
         }
     }
 
-    pub fn head(&mut self) -> Option<&T> {
+    pub fn head(&mut self) -> Option<*const T> {
         match self.head {
             None => None,
-            Some(mut head) => unsafe { Some(&head.as_mut().data) },
+            Some(head) => unsafe { Some(addr_of!(head.as_ref().data)) },
         }
     }
 
-    pub fn tail_mut(&mut self) -> Option<&mut T> {
+    pub fn tail_mut(&mut self) -> Option<*mut T> {
         match self.tail {
             None => None,
-            Some(mut tail) => unsafe { Some(&mut tail.as_mut().data) },
+            Some(mut tail) => unsafe { Some(addr_of_mut!(tail.as_mut().data)) },
         }
     }
 
-    pub fn head_mut(&mut self) -> Option<&mut T> {
+    pub fn head_mut(&mut self) -> Option<*mut T> {
         match self.head {
             None => None,
-            Some(mut head) => unsafe { Some(&mut head.as_mut().data) },
+            Some(mut tail) => unsafe { Some(addr_of_mut!(tail.as_mut().data)) },
         }
+    }
+
+    pub const fn list_node_size(&self) -> u64 {
+        size!(DoublyLinkedListNode<T>)
     }
 }
 
@@ -155,9 +161,9 @@ impl<T> SinglyLinkedList<T> {
     /// # Safety:
     /// - Ensure that the `address` passed has enough capacity for
     /// `size_of<SinglyLinkedListNode<T>`
-    pub unsafe fn append(&mut self, data: T, address: VirtualAddress) {
+    pub unsafe fn append(&mut self, address: VirtualAddress, data: T) {
         let ptr = address.as_addr() as *mut SinglyLinkedListNode<T>;
-        ptr.write(SinglyLinkedListNode { data, next: None });
+        ptr.write_unaligned(SinglyLinkedListNode { data, next: None });
         let node = Some(NonNull::new_unchecked(ptr));
 
         match self.tail {
@@ -224,32 +230,36 @@ impl<T> SinglyLinkedList<T> {
         }
     }
 
-    pub fn tail(&mut self) -> Option<&T> {
+    pub fn tail(&mut self) -> Option<*const T> {
         match self.tail {
             None => None,
-            Some(mut tail) => unsafe { Some(&tail.as_mut().data) },
+            Some(tail) => unsafe { Some(addr_of!(tail.as_ref().data)) },
         }
     }
 
-    pub fn head(&mut self) -> Option<&T> {
+    pub fn head(&mut self) -> Option<*const T> {
         match self.head {
             None => None,
-            Some(mut head) => unsafe { Some(&head.as_mut().data) },
+            Some(head) => unsafe { Some(addr_of!(head.as_ref().data)) },
         }
     }
 
-    pub fn tail_mut(&mut self) -> Option<&mut T> {
+    pub fn tail_mut(&mut self) -> Option<*mut T> {
         match self.tail {
             None => None,
-            Some(mut tail) => unsafe { Some(&mut tail.as_mut().data) },
+            Some(mut tail) => unsafe { Some(addr_of_mut!(tail.as_mut().data)) },
         }
     }
 
-    pub fn head_mut(&mut self) -> Option<&mut T> {
+    pub fn head_mut(&mut self) -> Option<*mut T> {
         match self.head {
             None => None,
-            Some(mut head) => unsafe { Some(&mut head.as_mut().data) },
+            Some(mut tail) => unsafe { Some(addr_of_mut!(tail.as_mut().data)) },
         }
+    }
+
+    pub const fn list_node_size(&self) -> u64 {
+        size!(SinglyLinkedListNode<T>)
     }
 }
 
