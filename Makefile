@@ -37,7 +37,10 @@ ifeq ($(wildcard build/limine/.),)
 	@$(MAKE) -C build/limine
 endif
 
-kernel: setup
+check:
+	@cargo check $(CARGO_FLAGS)
+
+kernel: check setup
 	@export KERNEL_EXECUTABLE=$$(cargo build $(CARGO_FLAGS) --message-format=json | jq -r 'select(.executable) | .executable'); \
 	cp $$KERNEL_EXECUTABLE build/bin/kernel
 
