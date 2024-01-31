@@ -21,15 +21,15 @@ struct Header {
     data: u16,
 }
 
-pub struct ExplicitFreeList<'a> {
+pub struct ExplicitFreeList {
     total_allocated_to_current_object: u64,
     free_blocks: DoublyLinkedList<Block>,
     objects: SinglyLinkedList<VirtualMemoryObject>,
-    vmm: &'a OnceCellMutex<VirtualMemoryManager>,
+    vmm: *mut OnceCellMutex<VirtualMemoryManager>,
 }
 
-impl<'a> ExplicitFreeList<'a> {
-    pub fn new(vmm: &'a OnceCellMutex<VirtualMemoryManager>) -> Self {
+impl ExplicitFreeList {
+    pub fn new(vmm: *mut OnceCellMutex<VirtualMemoryManager>) -> Self {
         Self {
             total_allocated_to_current_object: 0,
             vmm,
@@ -43,7 +43,7 @@ impl<'a> ExplicitFreeList<'a> {
     /// `vmm.allocate_object` and adjusts the base to account for the node size
     unsafe fn allocate_object(&mut self, size: u64) -> VirtualMemoryObject {
         let size = align_up(size + NODE_SIZE, PAGE_SIZE);
-        match self.vmm.lock().allocate_object(size) {
+        match (*self.vmm).lock().allocate_object(size) {
             None => panic!("Failed to allocate an object"),
             Some(mut object) => {
                 let allocate_to = object.base;

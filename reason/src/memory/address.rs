@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use crate::arch::paging::PAGE_SIZE;
+use crate::{arch::paging::PAGE_SIZE, misc::colored::Colorize};
 use core::{fmt, ops::Add, ops::AddAssign};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,6 +60,27 @@ impl VirtualAddress {
         self.0 == 0
     }
 }
+
+pub trait IntoAddress {
+    fn as_virtual(&self) -> VirtualAddress;
+    fn as_physical(&self) -> PhysicalAddress;
+}
+
+impl<T> IntoAddress for T
+where
+    T: Into<u64> + Copy,
+{
+    fn as_virtual(&self) -> VirtualAddress {
+        let value = (*self).into();
+        VirtualAddress::new(value)
+    }
+    fn as_physical(&self) -> PhysicalAddress {
+        let value = (*self).into();
+        PhysicalAddress::new(value)
+    }
+}
+
+use crate::misc::colored::Color;
 
 impl fmt::Display for PhysicalAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

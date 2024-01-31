@@ -17,8 +17,10 @@ use drivers::serial;
 use arch::cpu;
 use misc::log;
 
+use misc::colored::Colorize;
+
 #[no_mangle]
-unsafe extern "C" fn _start() -> ! {
+extern "C" fn _start() -> ! {
     serial::initialize();
     boot::initialize();
     framebuffer::initialize();
@@ -34,13 +36,13 @@ unsafe extern "C" fn _start() -> ! {
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    serial::print!("\x1b[31m{}\x1B[0m\n", info);
+    serial::print!("{}", info.red());
     cpu::hcf();
 }
 
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
-    serial::println!("Running {} tests", tests.len());
+    log::info!("Running {} tests", tests.len());
     for test in tests {
         test();
     }

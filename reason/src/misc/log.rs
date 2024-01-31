@@ -1,9 +1,8 @@
 macro_rules! debug {
     ($($arg:tt)*) => {
         {
-            use $crate::misc::colored::Colored;
-            use $crate::misc::colored::Color;
-            ($crate::serial::print!("{} {} {} {}\n", "[".fg(Color::Gray), "DEBG".fg(Color::Yellow), "]:".fg(Color::Gray),  format_args!($($arg)*)))
+            use $crate::misc::colored::Colorize;
+            ($crate::serial::print!("{} {} {} {}\n", "[".gray(), "DEBG".yellow(), "]:".gray(),  format_args!($($arg)*)))
         }
     };
 }
@@ -11,9 +10,8 @@ macro_rules! debug {
 macro_rules! warning {
     ($($arg:tt)*) => {
         {
-            use $crate::misc::colored::Colored;
-            use $crate::misc::colored::Color;
-            ($crate::serial::print!("{} {} {} {}\n", "[".fg(Color::Gray), "WARN".fg(Color::Red), "]:".fg(Color::Gray),  format_args!($($arg)*)))
+            use $crate::misc::colored::Colorize;
+            ($crate::serial::print!("{} {} {} {}\n", "[".gray(), "WARN".red(), "]:".gray(),  format_args!($($arg)*)))
         }
     };
 }
@@ -21,9 +19,8 @@ macro_rules! warning {
 macro_rules! info {
     ($($arg:tt)*) => {
         {
-            use $crate::misc::colored::Colored;
-            use $crate::misc::colored::Color;
-            ($crate::serial::print!("{} {} {} {}\n", "[".fg(Color::Gray), "INFO".fg(Color::Blue), "]:".fg(Color::Gray),  format_args!($($arg)*)))
+            use $crate::misc::colored::Colorize;
+            ($crate::serial::print!("{} {} {} {}\n", "[".gray(), "INFO".blue(), "]:".gray(),  format_args!($($arg)*)))
         }
     };
 }

@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 use bitflags::bitflags;
+use core::ptr::addr_of;
 
 mod address;
 mod heap;
@@ -15,6 +16,7 @@ use crate::misc::utils::{align_down, OnceCellMutex};
 use pmm::BitmapAllocator;
 use vmm::VirtualMemoryManager;
 
+pub use address::IntoAddress;
 pub use address::{PhysicalAddress, VirtualAddress};
 
 use self::heap::ExplicitFreeList;
@@ -57,7 +59,9 @@ pub fn initialize() {
 
         log::info!("Initialized VMM");
 
-        KERNEL_HEAP_ALLOCATOR.set(ExplicitFreeList::new(&VIRTUAL_MEMORY_MANAGER));
+        KERNEL_HEAP_ALLOCATOR.set(ExplicitFreeList::new(
+            addr_of!(VIRTUAL_MEMORY_MANAGER) as *mut OnceCellMutex<VirtualMemoryManager>
+        ));
 
         log::info!("Initialized Kernel Heap");
     }

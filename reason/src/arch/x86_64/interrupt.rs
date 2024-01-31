@@ -2,7 +2,6 @@ use spin::Mutex;
 
 use crate::arch::cpu::{self, Context};
 use crate::log;
-use crate::serial::println;
 
 pub type InterruptHandler = unsafe fn(*const Context);
 
@@ -44,11 +43,15 @@ const fn get_exception_message(vector: usize) -> &'static str {
 }
 
 unsafe fn dump_context(ctx: *const Context) {
+    use crate::misc::colored::Colorize;
+    use crate::serial::println;
+
     let ctx = ctx.read_volatile();
+    let message = get_exception_message(ctx.vector as usize).red();
 
     println!("----------------------------");
     println!("Received Exception {}", ctx.vector);
-    println!("Description: {}", get_exception_message(ctx.error as usize));
+    println!("Description: {}", message);
     println!("Error Code: {}", ctx.error);
     println!("----------------------------");
     println!("rax: 0x{:016X}", ctx.rax);

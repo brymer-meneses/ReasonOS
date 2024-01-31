@@ -1,8 +1,9 @@
 use core::arch::asm;
 use core::mem;
-use core::ptr::NonNull;
+use core::ptr::{addr_of, NonNull};
 
 use crate::arch::x86_64::interrupt::InterruptHandler;
+use crate::memory::IntoAddress;
 use crate::misc::log;
 
 #[derive(Clone, Copy)]
@@ -63,7 +64,7 @@ extern "C" {
 pub fn initialize() {
     let mut idtptr = IdtPtr::NULL;
     unsafe {
-        idtptr.base = &INTERRUPT_DESCRIPTOR_TABLE as *const _ as u64;
+        idtptr.base = addr_of!(INTERRUPT_DESCRIPTOR_TABLE) as *const _ as u64;
         idtptr.limit = (mem::size_of::<IdtEntry>() * IDT_ENTRIES - 1) as u16;
         for (index, &handler) in INTERRUPT_HANDLERS.iter().enumerate() {
             INTERRUPT_DESCRIPTOR_TABLE[index].set_entry(handler as u64, 0x8E);
@@ -71,8 +72,8 @@ pub fn initialize() {
         load_idt(&idtptr);
 
         log::info!(
-            "Initialized IDT at 0x{:016X}",
-            &INTERRUPT_DESCRIPTOR_TABLE as *const _ as u64
+            "Initialized IDT at {}",
+            (addr_of!(INTERRUPT_DESCRIPTOR_TABLE) as *const _ as u64).as_virtual()
         );
     }
 }

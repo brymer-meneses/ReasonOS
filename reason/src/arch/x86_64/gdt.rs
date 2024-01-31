@@ -1,4 +1,6 @@
+use crate::memory::IntoAddress;
 use core::mem;
+use core::ptr::addr_of;
 use spin::Mutex;
 
 use crate::log;
@@ -55,7 +57,7 @@ pub fn initialize() {
         let mut gdtpr = GdtPtr::NULL;
 
         gdtpr.limit = (mem::size_of::<GdtEntry>() * 5 - 1) as u16;
-        gdtpr.base = &GLOBAL_DESCRIPTOR_TABLE as *const _ as u64;
+        gdtpr.base = addr_of!(GLOBAL_DESCRIPTOR_TABLE) as *const _ as u64;
 
         GLOBAL_DESCRIPTOR_TABLE[0].set_entry(0, 0);
         GLOBAL_DESCRIPTOR_TABLE[1].set_entry(0x9A, 0xA0);
@@ -65,8 +67,8 @@ pub fn initialize() {
 
         load_gdt(&gdtpr);
         log::info!(
-            "Initialized GDT at 0x{:016X}",
-            &GLOBAL_DESCRIPTOR_TABLE as *const _ as u64
+            "Initialized GDT at {}",
+            (addr_of!(GLOBAL_DESCRIPTOR_TABLE) as *const _ as u64).as_virtual()
         );
     };
 }
