@@ -48,6 +48,7 @@ impl<T> DoublyLinkedList<T> {
 
     pub unsafe fn append_to_address(&mut self, address: VirtualAddress, data: T) {
         let ptr = address.as_addr() as *mut DoublyLinkedListNode<T>;
+        log::info!("Writing to {:?}", ptr);
         ptr.write(DoublyLinkedListNode {
             data,
             next: None,

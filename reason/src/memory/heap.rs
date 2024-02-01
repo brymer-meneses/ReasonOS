@@ -1,3 +1,40 @@
+/// Visualizations
+///
+///            ┌─────── Heap Region ─────────┐
+/// ┌──────────┬──────────┬──────────────────┐
+/// │ Virtual  │ Heap     │                  │
+/// │ Memory   │ Region   │     Payload      │
+/// │ Object   │ Node     │                  │
+/// │ Node     │          │                  │
+/// └──────────┴──────────┴──────────────────┘
+/// └───────── Virtual Memory Object  ───────┘
+///
+/// A heap region lives inside the `free_blocks` field
+/// of the `ExplicitFreeList.`
+///
+/// ┌─ Virtual Memory Object Node ─┐
+/// ┌──────┬───────────────────────┐
+/// │ next │ Virtual Memory Object │
+/// │      │      Fields           │
+/// └──────┴───────────────────────┘
+///        └───── NonNull<VirtualMemoryObject> points here
+///
+/// ┌─ Heap Region Node ─┐
+/// ┌──────┬─────────────┐
+/// │ next │ Heap Region │
+/// │      │   Fields    │
+/// └──────┴─────────────┘
+///        └────────────── NonNull<HeapRegion> points here
+///
+/// The heap payload consists of these `Block`
+///
+/// ┌────────┬───────────┬─────────┐
+/// │ Header │  Payload  │ Header  │
+/// └────────┴───────────┴─────────┘
+/// └─── NonNull<Block> points here
+///
+/// A `Block` is zero sized to make it so that `NonNull<Block>` is an opaque type
+///
 use core::cmp;
 use core::ptr::addr_of;
 use core::ptr::NonNull;
@@ -21,7 +58,6 @@ use super::IntoAddress;
 /// ┌────────┬───────────┬─────────┐
 /// │ Header │  Payload  │ Header  │
 /// └────────┴───────────┴─────────┘
-/// ▲
 /// └─── NonNull<Block> points here
 #[repr(C)]
 #[derive(Debug)]
@@ -71,14 +107,14 @@ impl BlockMetadata for NonNull<Block> {
         }
     }
 
-    /// ┌────────┬───────────┬─────────┐
-    /// │ Header │  Payload  │ Header  │
-    /// └────────┴───────────┴─────────┘
-    /// ▲
-    /// └─── NonNull<Block> points here
     unsafe fn install_headers(&self, size: u16) {
         let addr = self.as_ptr() as u64;
 
+        // ┌────────┬───────────┬─────────┐
+        // │ Header │  Payload  │ Header  │
+        // └────────┴───────────┴─────────┘
+        // ▲
+        // └─── NonNull<Block> points here
         let start_header = addr as *mut BlockHeader;
         start_header.write(BlockHeader { data: size });
 
@@ -87,24 +123,6 @@ impl BlockMetadata for NonNull<Block> {
     }
 }
 
-/// A heap region lives inside the `free_blocks` field
-/// of the `ExplicitFreeList.`
-///
-///            ┌─────── Heap Region ─────────┐
-/// ┌──────────┬──────────┬──────────────────┐
-/// │ Virtual  │ Heap     │                  │
-/// │ Memory   │ Region   │     Payload      │
-/// │ Object   │ Node     │                  │
-/// │ Fields   │          │                  │
-/// └──────────┴──────────┴──────────────────┘
-/// └───────── Virtual Memory Object  ───────┘
-///
-/// ┌─ Heap Region Node ─┐
-/// ┌──────┬─────────────┐
-/// │ next │ Heap Region │
-/// │      │   Fields    │
-/// └──────┴─────────────┘
-///        └────────────── NonNull<HeapRegion> points here
 #[repr(C)]
 #[derive(Debug)]
 pub struct HeapRegion {
@@ -115,8 +133,12 @@ pub struct HeapRegion {
 
 trait HeapRegionMetadata {
     unsafe fn get_object(&self) -> NonNull<VirtualMemoryObject>;
+
     unsafe fn get_capacity(&self) -> u64;
-    unsafe fn allocate_block(&mut self, size: u16) -> NonNull<Block>;
+    unsafe fn allocate_block(&mut self, size: u16) -> Option<NonNull<Block>>;
+    unsafe fn get_payload_address(&self) -> VirtualAddress;
+
+    unsafe fn get_end_address(&self) -> VirtualAddress;
 }
 
 impl HeapRegionMetadata for NonNull<HeapRegion> {
@@ -137,23 +159,36 @@ impl HeapRegionMetadata for NonNull<HeapRegion> {
 
         let length = object.length - (total_heap_region_size + total_vm_object_size);
 
-        log::info!("length {length}");
-
         length
     }
 
-    unsafe fn allocate_block(&mut self, size: u16) -> NonNull<Block> {
+    unsafe fn get_end_address(&self) -> VirtualAddress {
+        let end_address = self.as_ref().base + self.get_capacity();
+        assert!(end_address.is_page_aligned());
+
+        end_address
+    }
+
+    unsafe fn get_payload_address(&self) -> VirtualAddress {
+        let addr = self.as_ptr() as u64;
+        let payload_addr = addr + size!(HeapRegion);
+        payload_addr.as_virtual()
+    }
+
+    unsafe fn allocate_block(&mut self, size: u16) -> Option<NonNull<Block>> {
         // ensure that we can store memory here
         assert!(
             size >= size!(DoublyLinkedListNode<Block>) as u16,
-            "{} < {}",
-            size,
+            "{size} >= {}",
             size!(DoublyLinkedListNode<Block>)
         );
 
+        let current_address = self.get_payload_address() + self.as_ref().total_allocated;
         let total_allocated = self.as_ref().total_allocated;
 
-        assert!(size as u64 + total_allocated < self.get_capacity());
+        if current_address + size.into() > self.get_end_address() {
+            return None;
+        }
 
         let addr = self.as_ref().base + total_allocated;
 
@@ -162,7 +197,9 @@ impl HeapRegionMetadata for NonNull<HeapRegion> {
         self.as_mut().total_allocated += size as u64;
 
         block.install_headers(size);
-        block
+        block.set_is_used(true);
+
+        Some(block)
     }
 }
 
@@ -180,23 +217,52 @@ impl ExplicitFreeList {
     }
 
     pub unsafe fn alloc(&mut self, size: u64) -> VirtualAddress {
-        // let the vmm handle this since it is too big
-        if size >= PAGE_SIZE {
-            return self.vmm.as_mut().lock().allocate_object(size).as_ref().base;
-        }
+        assert_eq!(size % 8, 0);
+        assert!(size >= size!(DoublyLinkedListNode<Block>));
 
-        // ensure that size is divisible by 8
-        let adjusted_size = cmp::max(align_up(size, 8), size!(DoublyLinkedListNode<Block>));
+        let mut current_region = match self.regions.tail() {
+            None => self.allocate_region(size),
+            Some(region) => region,
+        };
 
-        let mut region = self.get_appropriate_region(adjusted_size);
+        // adjust the address to be aligned
+        let mut padding = match compute_padding(current_region, size) {
+            // we failed to compute the padding since it exceeds the capacity of the region
+            None => {
+                log::info!("Here!");
+                // we pass size here cause that won't matter since it will round it up to the
+                // nearest multiple of `PAGE_SIZE`
+                current_region = self.allocate_region(size);
+                // safe to unwrap here since this is a newly allocated region
+                compute_padding(current_region, size).unwrap()
+            }
+            Some(padding) => padding,
+        };
 
-        let addr = region
-            .allocate_block(adjusted_size as u16)
-            .get_payload_address();
+        let total_size = size + padding;
 
-        log::info!("\n{:#?}", region.read());
+        log::info!("original_size: {size}");
+        log::info!("padding: {padding}");
+        log::info!("total_size: {total_size}");
+        log::info!("\n{:#?}\n", current_region.as_ref());
 
-        addr
+        let addr = match current_region.allocate_block(size as u16) {
+            None => {
+                current_region = self.allocate_region(size);
+                padding = compute_padding(current_region, size).unwrap();
+                log::info!("Here 1");
+                current_region
+                    .allocate_block(size as u16)
+                    .unwrap()
+                    .get_payload_address()
+            }
+
+            Some(addr) => {
+                log::info!("Here 2");
+                addr.get_payload_address()
+            }
+        };
+        addr + padding
     }
 
     pub unsafe fn free(&mut self, address: VirtualAddress) {
@@ -222,17 +288,17 @@ impl ExplicitFreeList {
 
         self.regions.tail().unwrap()
     }
+}
 
-    unsafe fn get_appropriate_region(&mut self, size: u64) -> NonNull<HeapRegion> {
-        match self.regions.tail() {
-            None => self.allocate_region(size),
-            Some(region) => {
-                let capacity = region.get_capacity();
-                if capacity < region.read().total_allocated + size {
-                    return self.allocate_region(size);
-                }
-                region
-            }
-        }
+unsafe fn compute_padding(region: NonNull<HeapRegion>, mut size: u64) -> Option<u64> {
+    let payload_addr =
+        region.get_payload_address() + region.as_ref().total_allocated + size!(BlockHeader);
+
+    let aligned_addr = align_up(payload_addr.as_addr(), size).as_virtual();
+    if aligned_addr > region.get_end_address() {
+        return None;
     }
+
+    let padding = aligned_addr.as_addr() - payload_addr.as_addr();
+    Some(padding)
 }
