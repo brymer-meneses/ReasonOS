@@ -135,7 +135,8 @@ trait HeapRegionMetadata {
     unsafe fn get_object(&self) -> NonNull<VirtualMemoryObject>;
 
     unsafe fn get_capacity(&self) -> u64;
-    unsafe fn allocate_block(&mut self, size: u16) -> Option<NonNull<Block>>;
+    unsafe fn allocate_block(&mut self, size: u16) -> Option<VirtualAddress>;
+
     unsafe fn get_payload_address(&self) -> VirtualAddress;
 
     unsafe fn get_end_address(&self) -> VirtualAddress;
@@ -170,36 +171,50 @@ impl HeapRegionMetadata for NonNull<HeapRegion> {
     }
 
     unsafe fn get_payload_address(&self) -> VirtualAddress {
+        // ┌─ Heap Region Node ─┐
+        // ┌──────┬─────────────┐
+        // │ next │ Heap Region │
+        // │      │   Fields    │
+        // └──────┴─────────────┘
+        //        └────────────── NonNull<HeapRegion> points here
         let addr = self.as_ptr() as u64;
         let payload_addr = addr + size!(HeapRegion);
         payload_addr.as_virtual()
     }
 
-    unsafe fn allocate_block(&mut self, size: u16) -> Option<NonNull<Block>> {
+    unsafe fn allocate_block(&mut self, size: u16) -> Option<VirtualAddress> {
         // ensure that we can store memory here
-        assert!(
-            size >= size!(DoublyLinkedListNode<Block>) as u16,
-            "{size} >= {}",
-            size!(DoublyLinkedListNode<Block>)
-        );
+        debug_assert!(size >= size!(DoublyLinkedListNode<Block>) as u16);
 
-        let current_address = self.get_payload_address() + self.as_ref().total_allocated;
         let total_allocated = self.as_ref().total_allocated;
+        let current_address = self.get_payload_address() + total_allocated;
+        let payload_address = current_address + size!(BlockHeader);
 
-        if current_address + size.into() > self.get_end_address() {
+        let aligned_address = align_up(payload_address.as_addr(), size.into()).as_virtual();
+
+        let padding = aligned_address.as_addr() - payload_address.as_addr();
+
+        let aligned_size = size + padding as u16;
+        let total_size = align_up(aligned_size as u64, 8);
+
+        if total_size + total_allocated > self.get_capacity() {
             return None;
         }
 
-        let addr = self.as_ref().base + total_allocated;
+        log::info!("original_size {size}");
+        log::info!("total_size {total_size}");
+        log::info!("delta {}", total_size - size as u64);
 
-        let block = NonNull::new_unchecked(addr.as_addr() as *mut Block);
+        self.as_mut().total_allocated += total_size;
 
-        self.as_mut().total_allocated += size as u64;
+        debug_assert!(total_size % 8 == 0, "{total_size}");
 
-        block.install_headers(size);
+        let block = NonNull::new_unchecked(current_address.as_addr() as *mut Block);
+
+        block.install_headers(total_size as u16);
         block.set_is_used(true);
 
-        Some(block)
+        Some(block.get_payload_address() + padding)
     }
 }
 
@@ -225,44 +240,18 @@ impl ExplicitFreeList {
             Some(region) => region,
         };
 
-        // adjust the address to be aligned
-        let mut padding = match compute_padding(current_region, size) {
-            // we failed to compute the padding since it exceeds the capacity of the region
+        match current_region.allocate_block(size as u16) {
             None => {
-                log::info!("Here!");
-                // we pass size here cause that won't matter since it will round it up to the
-                // nearest multiple of `PAGE_SIZE`
-                current_region = self.allocate_region(size);
-                // safe to unwrap here since this is a newly allocated region
-                compute_padding(current_region, size).unwrap()
-            }
-            Some(padding) => padding,
-        };
+                let mut current_region = self.allocate_region(size);
 
-        let total_size = size + padding;
-
-        log::info!("original_size: {size}");
-        log::info!("padding: {padding}");
-        log::info!("total_size: {total_size}");
-        log::info!("\n{:#?}\n", current_region.as_ref());
-
-        let addr = match current_region.allocate_block(size as u16) {
-            None => {
-                current_region = self.allocate_region(size);
-                padding = compute_padding(current_region, size).unwrap();
-                log::info!("Here 1");
+                // we can safely unwrap here since self.allocate_region allocates a page aligned
+                // size which is definitely bigger than size
                 current_region
                     .allocate_block(size as u16)
-                    .unwrap()
-                    .get_payload_address()
+                    .unwrap_unchecked()
             }
-
-            Some(addr) => {
-                log::info!("Here 2");
-                addr.get_payload_address()
-            }
-        };
-        addr + padding
+            Some(addr) => addr,
+        }
     }
 
     pub unsafe fn free(&mut self, address: VirtualAddress) {
