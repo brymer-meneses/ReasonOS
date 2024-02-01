@@ -1,6 +1,6 @@
-#![allow(unused)]
+#![allow(dead_code)]
 
-use crate::{arch::paging::PAGE_SIZE, misc::colored::Colorize};
+use crate::arch::paging::PAGE_SIZE;
 use core::{fmt, ops::Add, ops::AddAssign};
 
 #[repr(C)]
@@ -81,8 +81,6 @@ where
         PhysicalAddress::new(value)
     }
 }
-
-use crate::misc::colored::Color;
 
 impl fmt::Display for PhysicalAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

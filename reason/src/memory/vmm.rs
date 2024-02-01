@@ -1,13 +1,11 @@
-use core::mem::size_of;
+#![allow(dead_code)]
 use core::ptr::NonNull;
 
 use super::{VirtualAddress, VirtualMemoryFlags};
 use crate::arch;
 use crate::arch::paging::PAGE_SIZE;
-use crate::data_structures::{SinglyLinkedList, SinglyLinkedListNode};
+use crate::data_structures::SinglyLinkedList;
 use crate::memory::PHYSICAL_MEMORY_MANAGER;
-use crate::misc::log;
-use crate::misc::utils::size;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]

@@ -35,11 +35,8 @@
 ///
 /// A `Block` is zero sized to make it so that `NonNull<Block>` is an opaque type
 ///
-use core::cmp;
-use core::ptr::addr_of;
 use core::ptr::NonNull;
 
-use crate::arch::paging::PAGE_SIZE;
 use crate::data_structures::{
     DoublyLinkedList, DoublyLinkedListNode, SinglyLinkedList, SinglyLinkedListNode,
 };
@@ -277,17 +274,4 @@ impl ExplicitFreeList {
 
         self.regions.tail().unwrap()
     }
-}
-
-unsafe fn compute_padding(region: NonNull<HeapRegion>, mut size: u64) -> Option<u64> {
-    let payload_addr =
-        region.get_payload_address() + region.as_ref().total_allocated + size!(BlockHeader);
-
-    let aligned_addr = align_up(payload_addr.as_addr(), size).as_virtual();
-    if aligned_addr > region.get_end_address() {
-        return None;
-    }
-
-    let padding = aligned_addr.as_addr() - payload_addr.as_addr();
-    Some(padding)
 }

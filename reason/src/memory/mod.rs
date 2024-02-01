@@ -1,4 +1,4 @@
-#![allow(unused)]
+#![allow(dead_code)]
 
 use bitflags::bitflags;
 use core::ptr::{addr_of, addr_of_mut, NonNull};
@@ -11,7 +11,7 @@ mod vmm;
 use crate::arch::paging::{self, PAGE_SIZE};
 use crate::boot::MEMORY_MAP_REQUEST;
 use crate::misc::log;
-use crate::misc::utils::{align_down, align_up, OnceCellMutex};
+use crate::misc::utils::{align_up, OnceCellMutex};
 
 use pmm::BitmapAllocator;
 use vmm::VirtualMemoryManager;
@@ -75,7 +75,7 @@ extern "C" {
 #[cfg(test)]
 mod tests {
 
-    use crate::{data_structures::DoublyLinkedList, misc::utils::size};
+    use crate::data_structures::DoublyLinkedList;
 
     use super::*;
 
@@ -85,7 +85,7 @@ mod tests {
             let mut heap_allocator = KERNEL_HEAP_ALLOCATOR.lock();
             let mut linked_list = DoublyLinkedList::<u64>::new();
 
-            for i in 0..10000u64 {
+            for i in 0..10u64 {
                 let address = heap_allocator.alloc(linked_list.list_node_size());
                 linked_list.append_to_address(address, i);
             }
