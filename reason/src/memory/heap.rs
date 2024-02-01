@@ -6,209 +6,233 @@ use crate::arch::paging::PAGE_SIZE;
 use crate::data_structures::{
     DoublyLinkedList, DoublyLinkedListNode, SinglyLinkedList, SinglyLinkedListNode,
 };
-use crate::memory::vmm::{VirtualMemoryManager, VirtualMemoryRegion};
+use crate::memory::vmm::{VirtualMemoryManager, VirtualMemoryObject};
 use crate::memory::VirtualAddress;
 use crate::misc::log;
 use crate::misc::utils::{align_up, size, OnceCellMutex};
 
 use super::IntoAddress;
 
-/// A `BlockMetadata` is a "view" of a `Block`
-struct BlockMetadata {
-    header: BlockHeader,
+/// A `Block` is deliberately zero-sized to make it so that
+/// `NonNull<Block>` is effectively akin to a non null `*void` ptr in c
+///
+/// A block the following structure:
+///
+/// ┌────────┬───────────┬─────────┐
+/// │ Header │  Payload  │ Header  │
+/// └────────┴───────────┴─────────┘
+/// ▲
+/// └─── NonNull<Block> points here
+#[repr(C)]
+#[derive(Debug)]
+struct Block;
 
-    /// start of the memory we can use
-    base: VirtualAddress,
-}
-
-#[derive(Clone, Copy)]
+#[repr(C)]
 struct BlockHeader {
     data: u16,
 }
 
-/// A `HeapRegion` is where we store the metadata of a `VirtualMemoryRegion`
-/// we could technically just add the required attributes to `VirtualMemoryRegion`
-/// but that will only be used by the `Heap` and is not ideal in my opinion
+trait BlockMetadata {
+    unsafe fn get_header(&self) -> BlockHeader;
+    unsafe fn get_size(&self) -> u16;
+    unsafe fn get_payload_address(&self) -> VirtualAddress;
+    unsafe fn get_is_used(&self) -> bool;
+
+    unsafe fn install_headers(&self, size: u16);
+
+    unsafe fn set_is_used(&self, value: bool);
+}
+
+impl BlockMetadata for NonNull<Block> {
+    unsafe fn get_header(&self) -> BlockHeader {
+        let addr = self.as_ptr() as u64;
+        (addr as *const BlockHeader).read()
+    }
+
+    unsafe fn get_size(&self) -> u16 {
+        self.get_header().data & !0b111_u16
+    }
+
+    unsafe fn get_payload_address(&self) -> VirtualAddress {
+        let addr = self.as_ptr() as u64;
+        (addr + size!(BlockHeader)).as_virtual()
+    }
+
+    unsafe fn get_is_used(&self) -> bool {
+        self.get_header().data & 1 == 1
+    }
+
+    unsafe fn set_is_used(&self, set_use: bool) {
+        let ptr = self.as_ptr() as u64 as *mut BlockHeader;
+        if set_use {
+            (*ptr).data |= 1_u16
+        } else {
+            (*ptr).data &= !1_u16
+        }
+    }
+
+    /// ┌────────┬───────────┬─────────┐
+    /// │ Header │  Payload  │ Header  │
+    /// └────────┴───────────┴─────────┘
+    /// ▲
+    /// └─── NonNull<Block> points here
+    unsafe fn install_headers(&self, size: u16) {
+        let addr = self.as_ptr() as u64;
+
+        let start_header = addr as *mut BlockHeader;
+        start_header.write(BlockHeader { data: size });
+
+        let end_header = (addr + 2 * size!(BlockHeader) + size as u64) as *mut BlockHeader;
+        end_header.write(BlockHeader { data: size });
+    }
+}
+
+/// A heap region lives inside the `free_blocks` field
+/// of the `ExplicitFreeList.`
 ///
-///  +-----------+-------------+-------+-------+-------+-------+
-///  | VM Region | Heap Region | Block | Block | Block | Block |
-///  +-----------+-------------+-------+-------+-------+-------+
+///            ┌─────── Heap Region ─────────┐
+/// ┌──────────┬──────────┬──────────────────┐
+/// │ Virtual  │ Heap     │                  │
+/// │ Memory   │ Region   │     Payload      │
+/// │ Object   │ Node     │                  │
+/// │ Fields   │          │                  │
+/// └──────────┴──────────┴──────────────────┘
+/// └───────── Virtual Memory Object  ───────┘
 ///
+/// ┌─ Heap Region Node ─┐
+/// ┌──────┬─────────────┐
+/// │ next │ Heap Region │
+/// │      │   Fields    │
+/// └──────┴─────────────┘
+///        └────────────── NonNull<HeapRegion> points here
+#[repr(C)]
+#[derive(Debug)]
 pub struct HeapRegion {
-    region: NonNull<VirtualMemoryRegion>,
-    free_blocks: DoublyLinkedList<NonNull<BlockHeader>>,
-    total_allocated: u16,
+    base: VirtualAddress,
+    total_allocated: u64,
+    free_blocks: DoublyLinkedList<Block>,
+}
+
+trait HeapRegionMetadata {
+    unsafe fn get_object(&self) -> NonNull<VirtualMemoryObject>;
+    unsafe fn get_capacity(&self) -> u64;
+    unsafe fn allocate_block(&mut self, size: u16) -> NonNull<Block>;
+}
+
+impl HeapRegionMetadata for NonNull<HeapRegion> {
+    unsafe fn get_object(&self) -> NonNull<VirtualMemoryObject> {
+        let next_node_size = size!(Option<NonNull<SinglyLinkedListNode<HeapRegion>>>);
+
+        let addr = self.as_ptr() as u64;
+        let object_addr = addr - next_node_size - size!(VirtualMemoryObject);
+
+        assert_ne!(object_addr, 0);
+        NonNull::new_unchecked(object_addr as *mut VirtualMemoryObject)
+    }
+
+    unsafe fn get_capacity(&self) -> u64 {
+        let object = self.get_object().as_ref();
+        let total_heap_region_size = size!(HeapRegion) + size!(Option<NonNull<()>>);
+        let total_vm_object_size = size!(VirtualMemoryObject) + size!(Option<NonNull<()>>);
+
+        let length = object.length - (total_heap_region_size + total_vm_object_size);
+
+        log::info!("length {length}");
+
+        length
+    }
+
+    unsafe fn allocate_block(&mut self, size: u16) -> NonNull<Block> {
+        // ensure that we can store memory here
+        assert!(
+            size >= size!(DoublyLinkedListNode<Block>) as u16,
+            "{} < {}",
+            size,
+            size!(DoublyLinkedListNode<Block>)
+        );
+
+        let total_allocated = self.as_ref().total_allocated;
+
+        assert!(size as u64 + total_allocated < self.get_capacity());
+
+        let addr = self.as_ref().base + total_allocated;
+
+        let block = NonNull::new_unchecked(addr.as_addr() as *mut Block);
+
+        self.as_mut().total_allocated += size as u64;
+
+        block.install_headers(size);
+        block
+    }
 }
 
 pub struct ExplicitFreeList {
-    vmm: *mut OnceCellMutex<VirtualMemoryManager>,
+    vmm: NonNull<OnceCellMutex<VirtualMemoryManager>>,
     regions: SinglyLinkedList<HeapRegion>,
 }
 
-struct HeapRegionIterator {
-    current: VirtualAddress,
-    end: VirtualAddress,
-}
-
-impl BlockHeader {
-    fn length(&self) -> u16 {
-        self.data & !0b111_u16
-    }
-
-    fn is_used(&self) -> bool {
-        self.data & 1 == 1
-    }
-
-    fn get_metadata(&self) -> BlockMetadata {
-        let base = self as *const _ as u64;
-        BlockMetadata {
-            header: *self,
-            base: base.as_virtual(),
-        }
-    }
-}
-
-impl Iterator for HeapRegionIterator {
-    type Item = BlockMetadata;
-    fn next(&mut self) -> Option<Self::Item> {
-        assert!(self.current <= self.end);
-
-        if self.current == self.end {
-            return None;
-        }
-
-        let header = unsafe { (self.current.as_addr() as *const BlockHeader).read() };
-        let base = self.current + header.length().into();
-
-        self.current += header.length().into();
-
-        Some(BlockMetadata { header, base })
-    }
-}
-
 impl ExplicitFreeList {
-    pub fn new(vmm: *mut OnceCellMutex<VirtualMemoryManager>) -> Self {
+    pub fn new(vmm: NonNull<OnceCellMutex<VirtualMemoryManager>>) -> Self {
         Self {
             vmm,
             regions: SinglyLinkedList::new(),
         }
     }
 
-    unsafe fn allocate_heap_region(&mut self, size: u64) -> *mut HeapRegion {
-        let vm_region = (*self.vmm).lock().allocate_region(size);
-        match vm_region {
-            None => panic!("Failed to allocate an object"),
-            Some(region) => {
-                self.regions.append(
-                    (*region).base,
-                    HeapRegion {
-                        total_allocated: 0,
-                        free_blocks: DoublyLinkedList::new(),
-                        region: NonNull::new_unchecked(region),
-                    },
-                );
-
-                (*region).base += self.regions.list_node_size();
-                return self.regions.tail_mut().unwrap();
-            }
-        }
-    }
-
-    unsafe fn get_appropriate_heap_region(&mut self, size: u64) -> *mut HeapRegion {
-        match self.regions.tail_mut() {
-            None => self.allocate_heap_region(size),
-            Some(region_ptr) => {
-                let region = unsafe { region_ptr.read() };
-                log::info!("size {size}");
-                log::info!("total_allocated {}", region.total_allocated);
-                if region.length() <= size + region.total_allocated as u64 {
-                    return self.allocate_heap_region(size);
-                }
-                region_ptr
-            }
-        }
-    }
     pub unsafe fn alloc(&mut self, size: u64) -> VirtualAddress {
-        // for mut node in self.regions.iter() {
-        //     for block_metadata in node.read().data.blocks() {
-        //         assert_ne!(block_metadata.header.data, 0);
-        //     }
-        // }
-
-        // let the vmm manage this allocation since it is too big
+        // let the vmm handle this since it is too big
         if size >= PAGE_SIZE {
-            return self.allocate_heap_region(size).read().get_base_address();
+            return self.vmm.as_mut().lock().allocate_object(size).as_ref().base;
         }
 
-        // we adjust the size since we want the ability to store two pointers in a block
-        let adjusted_size = cmp::max(size, size!(DoublyLinkedListNode<NonNull<BlockHeader>>));
+        // ensure that size is divisible by 8
+        let adjusted_size = cmp::max(align_up(size, 8), size!(DoublyLinkedListNode<Block>));
 
-        let region = self.get_appropriate_heap_region(adjusted_size);
+        let mut region = self.get_appropriate_region(adjusted_size);
 
-        assert!(!region.is_null());
+        let addr = region
+            .allocate_block(adjusted_size as u16)
+            .get_payload_address();
 
-        let block_metadata = (*region).try_allocate_block(adjusted_size as u16);
+        log::info!("\n{:#?}", region.read());
 
-        match block_metadata {
-            Some(data) => data.base,
-            None => panic!("unreachable!"),
+        addr
+    }
+
+    pub unsafe fn free(&mut self, address: VirtualAddress) {
+        if address.is_page_aligned() {
+            self.vmm.as_mut().lock().free_object(address);
         }
     }
-}
 
-impl HeapRegion {
-    fn blocks(&self) -> HeapRegionIterator {
-        // region.base points to the start of the heap region, so to get the address of the first
-        // block we need to add the size of `HeapRegion`
-        let region = unsafe { self.region.read() };
-        let base = region.base + size!(HeapRegion);
+    unsafe fn allocate_region(&mut self, size: u64) -> NonNull<HeapRegion> {
+        let mut vmm = self.vmm.as_mut().lock();
+        let object = vmm.allocate_object(size);
 
-        // we end at the "total_allocated"
-        let end = base + self.total_allocated.into();
+        let object_base = object.as_ref().base;
+        let heap_region_base = object_base + self.regions.list_node_size();
+        self.regions.append_to_address(
+            object_base,
+            HeapRegion {
+                base: heap_region_base,
+                free_blocks: DoublyLinkedList::new(),
+                total_allocated: 0,
+            },
+        );
 
-        HeapRegionIterator { current: base, end }
+        self.regions.tail().unwrap()
     }
 
-    fn length(&self) -> u64 {
-        let region = unsafe { self.region.as_ref() };
-
-        region.length - size!(SinglyLinkedListNode<HeapRegion>)
-    }
-
-    fn get_base_address(&self) -> VirtualAddress {
-        unsafe { self.region.read().base }
-    }
-
-    fn try_allocate_block(&mut self, size: u16) -> Option<BlockMetadata> {
-        assert!(size as u64 >= self.free_blocks.list_node_size());
-        assert_eq!(size % 8, 0);
-
-        for block in self.free_blocks.iter() {
-            let (header, ptr) = unsafe {
-                let ptr = block.read().data;
-
-                (ptr.read(), ptr)
-            };
-
-            if !header.is_used() && header.length() >= size {
-                return Some(BlockMetadata {
-                    header,
-                    base: (ptr.as_ptr() as u64).as_virtual(),
-                });
+    unsafe fn get_appropriate_region(&mut self, size: u64) -> NonNull<HeapRegion> {
+        match self.regions.tail() {
+            None => self.allocate_region(size),
+            Some(region) => {
+                let capacity = region.get_capacity();
+                if capacity < region.read().total_allocated + size {
+                    return self.allocate_region(size);
+                }
+                region
             }
         }
-
-        if self.total_allocated + size < self.length() as u16 {
-            let base = (self.get_base_address().as_addr() + self.total_allocated as u64)
-                as *mut BlockHeader;
-
-            unsafe { base.write(BlockHeader { data: size }) }
-
-            self.total_allocated += 2 * size!(BlockHeader) as u16 + size;
-
-            return unsafe { Some((*base).get_metadata()) };
-        }
-
-        None
     }
 }

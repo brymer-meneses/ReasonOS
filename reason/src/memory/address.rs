@@ -3,10 +3,12 @@
 use crate::{arch::paging::PAGE_SIZE, misc::colored::Colorize};
 use core::{fmt, ops::Add, ops::AddAssign};
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq)]
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq)]
 pub struct PhysicalAddress(u64);
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq)]
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq)]
 pub struct VirtualAddress(u64);
 
 impl PhysicalAddress {
@@ -88,7 +90,19 @@ impl fmt::Display for PhysicalAddress {
     }
 }
 
+impl fmt::Debug for PhysicalAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{:016x}", self.0)
+    }
+}
+
 impl fmt::Display for VirtualAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{:016x}", self.0)
+    }
+}
+
+impl fmt::Debug for VirtualAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "0x{:016x}", self.0)
     }

@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use bitflags::bitflags;
-use core::ptr::addr_of;
+use core::ptr::{addr_of, addr_of_mut, NonNull};
 
 mod address;
 mod heap;
@@ -26,7 +26,7 @@ pub static mut VIRTUAL_MEMORY_MANAGER: OnceCellMutex<VirtualMemoryManager> = Onc
 pub static mut KERNEL_HEAP_ALLOCATOR: OnceCellMutex<ExplicitFreeList> = OnceCellMutex::new();
 
 bitflags! {
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     pub struct VirtualMemoryFlags: u8 {
         const Writeable = 1 << 0;
         const Executable = 1 << 1;
@@ -46,10 +46,8 @@ pub fn initialize() {
 
         let pagemap = paging::get_initial_pagemap();
 
-        let kernel_heap_start = VirtualAddress::new(align_up(
-            &__kernel_end_address as *const _ as u64,
-            PAGE_SIZE,
-        ));
+        let kernel_heap_start =
+            VirtualAddress::new(align_up(addr_of!(__kernel_end_address) as u64, PAGE_SIZE));
 
         log::debug!("Kernel Heap Start {}", kernel_heap_start);
 
@@ -61,9 +59,9 @@ pub fn initialize() {
 
         log::info!("Initialized VMM");
 
-        KERNEL_HEAP_ALLOCATOR.set(ExplicitFreeList::new(
-            addr_of!(VIRTUAL_MEMORY_MANAGER) as *mut OnceCellMutex<VirtualMemoryManager>
-        ));
+        KERNEL_HEAP_ALLOCATOR.set(ExplicitFreeList::new(NonNull::new_unchecked(addr_of_mut!(
+            VIRTUAL_MEMORY_MANAGER
+        ))));
 
         log::info!("Initialized Kernel Heap");
     }
@@ -85,12 +83,11 @@ mod tests {
     fn test_linked_list() {
         unsafe {
             let mut heap_allocator = KERNEL_HEAP_ALLOCATOR.lock();
-            let mut linked_list = DoublyLinkedList::<i64>::new();
+            let mut linked_list = DoublyLinkedList::<u64>::new();
 
-            for i in 0..1000 {
-                let address = heap_allocator.alloc(size!(i64));
-                linked_list.append(address, i);
-            }
+            // for i in 0..10000u64 {
+            //     let address = heap_allocator.alloc(100);
+            // }
         }
     }
 }

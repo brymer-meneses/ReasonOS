@@ -27,6 +27,8 @@ extern "C" fn _start() -> ! {
     framebuffer::initialize();
 
     arch::initialize();
+
+    // log::info!("{}", align_up(4, 8));
     memory::initialize();
 
     #[cfg(test)]
