@@ -1,10 +1,8 @@
+use core::ptr::addr_of_mut;
 use core::ptr::NonNull;
-use core::ptr::{addr_of, addr_of_mut};
 
 use crate::memory::VirtualAddress;
-use crate::misc::log;
 use crate::misc::utils::size;
-use crate::misc::utils::{align_down, align_up};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -48,7 +46,6 @@ impl<T> DoublyLinkedList<T> {
 
     pub unsafe fn append_to_address(&mut self, address: VirtualAddress, data: T) {
         let ptr = address.as_addr() as *mut DoublyLinkedListNode<T>;
-        log::info!("Writing to {:?}", ptr);
         ptr.write(DoublyLinkedListNode {
             data,
             next: None,

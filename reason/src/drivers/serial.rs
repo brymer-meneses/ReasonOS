@@ -53,6 +53,12 @@ pub fn initialize() {
     }
 }
 
+pub fn write_byte(byte: u8) {
+    unsafe {
+        SERIAL_WRITER.lock().write_character(byte as char);
+    }
+}
+
 #[doc(hidden)]
 pub fn _write(args: fmt::Arguments) {
     unsafe {

@@ -8,6 +8,7 @@ QEMUFLAGS := \
 	-display none \
 	-D qemu-log.txt \
 	-d int -M smm=off \
+	-device isa-debug-exit,iobase=0xf4,iosize=0x0f
 
 CARGO_FLAGS := \
 	--manifest-path=reason/Cargo.toml \

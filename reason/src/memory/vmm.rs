@@ -76,9 +76,6 @@ impl VirtualMemoryManager {
         );
 
         self.current_address += pages * PAGE_SIZE;
-
-        let tail = self.allocated_objects.tail().unwrap();
-
         self.allocated_objects.tail().unwrap_unchecked()
     }
 

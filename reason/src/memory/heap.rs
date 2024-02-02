@@ -35,6 +35,12 @@
 ///
 /// A `Block` is zero sized to make it so that `NonNull<Block>` is an opaque type
 ///
+/// ┌────────┬───────────┬─────────┐
+/// │ Header │  Payload  │ Header  │
+/// └────────┴───────────┴─────────┘
+/// └─── NonNull<Block> points here
+///
+use core::cmp;
 use core::ptr::NonNull;
 
 use crate::data_structures::{
@@ -42,7 +48,6 @@ use crate::data_structures::{
 };
 use crate::memory::vmm::{VirtualMemoryManager, VirtualMemoryObject};
 use crate::memory::VirtualAddress;
-use crate::misc::log;
 use crate::misc::utils::{align_up, size, OnceCellMutex};
 
 use super::IntoAddress;
@@ -78,6 +83,10 @@ trait BlockMetadata {
 
 impl BlockMetadata for NonNull<Block> {
     unsafe fn get_header(&self) -> BlockHeader {
+        // ┌────────┬───────────┬─────────┐
+        // │ Header │  Payload  │ Header  │
+        // └────────┴───────────┴─────────┘
+        // └─── self points here
         let addr = self.as_ptr() as u64;
         (addr as *const BlockHeader).read()
     }
@@ -87,6 +96,11 @@ impl BlockMetadata for NonNull<Block> {
     }
 
     unsafe fn get_payload_address(&self) -> VirtualAddress {
+        // ┌────────┬───────────┬─────────┐
+        // │ Header │  Payload  │ Header  │
+        // └────────┴───────────┴─────────┘
+        //          └─── We want this
+        // └─── but `self` points here
         let addr = self.as_ptr() as u64;
         (addr + size!(BlockHeader)).as_virtual()
     }
@@ -110,8 +124,7 @@ impl BlockMetadata for NonNull<Block> {
         // ┌────────┬───────────┬─────────┐
         // │ Header │  Payload  │ Header  │
         // └────────┴───────────┴─────────┘
-        // ▲
-        // └─── NonNull<Block> points here
+        // └─── `self` points here
         let start_header = addr as *mut BlockHeader;
         start_header.write(BlockHeader { data: size });
 
@@ -132,11 +145,20 @@ trait HeapRegionMetadata {
     unsafe fn get_object(&self) -> NonNull<VirtualMemoryObject>;
 
     unsafe fn get_capacity(&self) -> u64;
-    unsafe fn allocate_block(&mut self, size: u16) -> Option<VirtualAddress>;
+    unsafe fn allocate_block(&mut self, size: u16, alignment: u64) -> Option<VirtualAddress>;
 
     unsafe fn get_payload_address(&self) -> VirtualAddress;
 
     unsafe fn get_end_address(&self) -> VirtualAddress;
+    unsafe fn get_total_allocated(&self) -> u64;
+
+    unsafe fn get_blocks(&self) -> HeapRegionIterator;
+    unsafe fn get_current_address(&self) -> VirtualAddress;
+}
+
+struct HeapRegionIterator {
+    current: VirtualAddress,
+    end: VirtualAddress,
 }
 
 impl HeapRegionMetadata for NonNull<HeapRegion> {
@@ -148,6 +170,10 @@ impl HeapRegionMetadata for NonNull<HeapRegion> {
 
         assert_ne!(object_addr, 0);
         NonNull::new_unchecked(object_addr as *mut VirtualMemoryObject)
+    }
+
+    unsafe fn get_total_allocated(&self) -> u64 {
+        self.as_ref().total_allocated
     }
 
     unsafe fn get_capacity(&self) -> u64 {
@@ -169,47 +195,66 @@ impl HeapRegionMetadata for NonNull<HeapRegion> {
 
     unsafe fn get_payload_address(&self) -> VirtualAddress {
         // ┌─ Heap Region Node ─┐
-        // ┌──────┬─────────────┐
-        // │ next │ Heap Region │
-        // │      │   Fields    │
-        // └──────┴─────────────┘
+        // ┌──────┬─────────────┬────────────┐
+        // │ next │ Heap Region │ payload    │
+        // │      │   Fields    │            │
+        // └──────┴─────────────┴────────────┘
+        //                      └────────────── We want this
         //        └────────────── NonNull<HeapRegion> points here
         let addr = self.as_ptr() as u64;
         let payload_addr = addr + size!(HeapRegion);
         payload_addr.as_virtual()
     }
 
-    unsafe fn allocate_block(&mut self, size: u16) -> Option<VirtualAddress> {
-        // ensure that we can store memory here
-        debug_assert!(size >= size!(DoublyLinkedListNode<Block>) as u16);
+    unsafe fn get_current_address(&self) -> VirtualAddress {
+        self.as_ref().base + self.as_ref().total_allocated
+    }
 
-        let total_allocated = self.as_ref().total_allocated;
-        let current_address = self.get_payload_address() + total_allocated;
-        let payload_address = current_address + size!(BlockHeader);
-
-        let aligned_address = align_up(payload_address.as_addr(), size.into()).as_virtual();
-
-        let padding = aligned_address.as_addr() - payload_address.as_addr();
-
-        let aligned_size = size + padding as u16;
-        let total_size = align_up(aligned_size as u64, 8);
-
-        if total_size + total_allocated > self.get_capacity() {
-            return None;
+    unsafe fn get_blocks(&self) -> HeapRegionIterator {
+        HeapRegionIterator {
+            current: self.get_current_address(),
+            end: self.get_end_address(),
         }
+    }
 
-        log::info!("original_size {size}");
-        log::info!("total_size {total_size}");
-        log::info!("delta {}", total_size - size as u64);
+    unsafe fn allocate_block(&mut self, size: u16, alignment: u64) -> Option<VirtualAddress> {
+        // ensure that we can store memory here
+        // debug_assert!(size >= size!(DoublyLinkedListNode<Block>) as u16);
 
-        self.as_mut().total_allocated += total_size;
+        let current_address = self.get_current_address();
 
-        debug_assert!(total_size % 8 == 0, "{total_size}");
+        let (total_size, padding) = {
+            let total_allocated = self.get_total_allocated();
 
-        let block = NonNull::new_unchecked(current_address.as_addr() as *mut Block);
+            let payload_address = current_address + size!(BlockHeader);
+            let aligned_address = align_up(payload_address.as_addr(), alignment).as_virtual();
 
-        block.install_headers(total_size as u16);
-        block.set_is_used(true);
+            let padding = aligned_address.as_addr() - payload_address.as_addr();
+
+            let aligned_size = size + padding as u16;
+
+            let total_size = cmp::max(
+                align_up(aligned_size as u64, 8),
+                size!(DoublyLinkedListNode<Block>),
+            );
+
+            if total_size + total_allocated > self.get_capacity() {
+                return None;
+            }
+
+            self.as_mut().total_allocated += total_size;
+            (total_size, padding)
+        };
+
+        debug_assert_eq!(total_size % 8, 0);
+        debug_assert_eq!(current_address.as_addr() % 2, 0);
+
+        let block = {
+            let block = NonNull::new_unchecked(current_address.as_addr() as *mut Block);
+            block.install_headers(total_size as u16);
+            block.set_is_used(true);
+            block
+        };
 
         Some(block.get_payload_address() + padding)
     }
@@ -228,23 +273,21 @@ impl ExplicitFreeList {
         }
     }
 
-    pub unsafe fn alloc(&mut self, size: u64) -> VirtualAddress {
-        assert_eq!(size % 8, 0);
-        assert!(size >= size!(DoublyLinkedListNode<Block>));
+    pub unsafe fn alloc(&mut self, size: u64, alignment: u64) -> VirtualAddress {
+        assert!(size != 0);
+        assert!(size < u16::MAX.into());
 
         let mut current_region = match self.regions.tail() {
             None => self.allocate_region(size),
             Some(region) => region,
         };
 
-        match current_region.allocate_block(size as u16) {
+        match current_region.allocate_block(size as u16, alignment) {
             None => {
-                let mut current_region = self.allocate_region(size);
-
-                // we can safely unwrap here since self.allocate_region allocates a page aligned
-                // size which is definitely bigger than size
-                current_region
-                    .allocate_block(size as u16)
+                self.allocate_region(size)
+                    // we can safely unwrap here since self.allocate_region
+                    // allocates a page aligned size which is definitely bigger than size
+                    .allocate_block(size as u16, alignment)
                     .unwrap_unchecked()
             }
             Some(addr) => addr,

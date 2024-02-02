@@ -7,7 +7,6 @@ mod address;
 mod heap;
 mod pmm;
 mod vmm;
-
 use crate::arch::paging::{self, PAGE_SIZE};
 use crate::boot::MEMORY_MAP_REQUEST;
 use crate::misc::log;
@@ -85,10 +84,22 @@ mod tests {
             let mut heap_allocator = KERNEL_HEAP_ALLOCATOR.lock();
             let mut linked_list = DoublyLinkedList::<u64>::new();
 
-            for i in 0..10u64 {
-                let address = heap_allocator.alloc(linked_list.list_node_size());
+            for i in 0..1000u64 {
+                let address = heap_allocator.alloc(linked_list.list_node_size(), 8);
                 linked_list.append_to_address(address, i);
             }
         }
     }
+
+    // TODO: fix this
+    // #[test_case]
+    // fn test_suspicious_alloc() {
+    //     unsafe {
+    //         let mut heap_allocator = KERNEL_HEAP_ALLOCATOR.lock();
+    //
+    //         for i in 1..1000u64 {
+    //             heap_allocator.alloc(i, 8);
+    //         }
+    //     }
+    // }
 }
