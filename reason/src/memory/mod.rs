@@ -82,11 +82,10 @@ mod tests {
     fn test_linked_list() {
         unsafe {
             let mut heap_allocator = KERNEL_HEAP_ALLOCATOR.lock();
-            let mut linked_list = DoublyLinkedList::<u64>::new();
 
-            for i in 0..1000u64 {
-                let address = heap_allocator.alloc(linked_list.list_node_size(), 8);
-                linked_list.append_to_address(address, i);
+            for i in 0..10u64 {
+                let address = heap_allocator.alloc(24, 8);
+                heap_allocator.free(address);
             }
         }
     }

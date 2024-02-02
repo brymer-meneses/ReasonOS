@@ -80,12 +80,8 @@ impl VirtualMemoryManager {
     }
 
     pub unsafe fn free_object(&mut self, address: VirtualAddress) {
-        self.allocated_objects.remove(
-            |object| object.base == address,
-            |node| {
-                (*node).data.is_used = false;
-            },
-        );
+        self.allocated_objects
+            .remove(|node| node.ptr_to_data().as_ref().base == address);
         todo!()
     }
 }

@@ -2,7 +2,7 @@ use std::error::Error;
 use walkdir::WalkDir;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    for entry in WalkDir::new("src") {
+    for entry in WalkDir::new("src/arch/x86_64") {
         let entry = entry.unwrap();
         let path = entry.path();
 

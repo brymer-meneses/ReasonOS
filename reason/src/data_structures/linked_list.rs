@@ -1,3 +1,4 @@
+use core::fmt;
 use core::ptr::addr_of_mut;
 use core::ptr::NonNull;
 
@@ -13,7 +14,6 @@ pub struct DoublyLinkedList<T> {
 }
 
 #[repr(C)]
-#[derive(Debug)]
 pub struct SinglyLinkedList<T> {
     head: Option<NonNull<SinglyLinkedListNode<T>>>,
     tail: Option<NonNull<SinglyLinkedListNode<T>>>,
@@ -72,17 +72,13 @@ impl<T> DoublyLinkedList<T> {
         self.length += 1;
     }
 
-    pub unsafe fn remove(
-        &mut self,
-        compare: impl Fn(&T) -> bool,
-        free_function: unsafe fn(*mut DoublyLinkedListNode<T>),
-    ) {
+    pub unsafe fn remove(&mut self, compare: impl Fn(&mut DoublyLinkedListNode<T>) -> bool) {
         assert_ne!(self.length, 0);
 
         let mut node = self.head;
 
         while let Some(mut node_ptr) = node {
-            if compare(&node_ptr.as_mut().data) {
+            if compare(node_ptr.as_mut()) {
                 node = node_ptr.as_mut().next;
                 continue;
             }
@@ -111,7 +107,6 @@ impl<T> DoublyLinkedList<T> {
                 }
             }
 
-            free_function(node_ptr.as_ptr());
             self.length -= 1;
             break;
         }
@@ -127,18 +122,14 @@ impl<T> DoublyLinkedList<T> {
     pub fn tail(&mut self) -> Option<NonNull<T>> {
         match self.tail {
             None => None,
-            Some(mut tail) => unsafe {
-                Some(NonNull::new_unchecked(addr_of_mut!(tail.as_mut().data)))
-            },
+            Some(mut tail) => unsafe { Some(tail.as_mut().ptr_to_data()) },
         }
     }
 
     pub fn head(&mut self) -> Option<NonNull<T>> {
         match self.head {
             None => None,
-            Some(mut head) => unsafe {
-                Some(NonNull::new_unchecked(addr_of_mut!(head.as_mut().data)))
-            },
+            Some(mut head) => unsafe { Some(head.as_mut().ptr_to_data()) },
         }
     }
 
@@ -191,17 +182,13 @@ impl<T> SinglyLinkedList<T> {
         self.length += 1;
     }
 
-    pub unsafe fn remove(
-        &mut self,
-        compare: impl Fn(&T) -> bool,
-        free_function: unsafe fn(*mut SinglyLinkedListNode<T>),
-    ) {
+    pub unsafe fn remove(&mut self, compare: impl Fn(&mut SinglyLinkedListNode<T>) -> bool) {
         assert_ne!(self.length, 0);
         let mut node = self.head;
         let mut previous_node = None;
 
         while let Some(mut node_ptr) = node {
-            if compare(&node_ptr.as_mut().data) {
+            if compare(node_ptr.as_mut()) {
                 previous_node = node;
                 node = node_ptr.as_mut().next;
                 continue;
@@ -228,7 +215,6 @@ impl<T> SinglyLinkedList<T> {
             }
 
             self.length -= 1;
-            free_function(node_ptr.as_ptr());
             break;
         }
     }
@@ -275,6 +261,18 @@ impl<T> SinglyLinkedList<T> {
     }
 }
 
+impl<T> SinglyLinkedListNode<T> {
+    pub unsafe fn ptr_to_data(&mut self) -> NonNull<T> {
+        NonNull::new_unchecked(addr_of_mut!(self.data))
+    }
+}
+
+impl<T> DoublyLinkedListNode<T> {
+    pub unsafe fn ptr_to_data(&mut self) -> NonNull<T> {
+        NonNull::new_unchecked(addr_of_mut!(self.data))
+    }
+}
+
 pub struct DoublyLinkedListIterator<'a, T> {
     list: &'a DoublyLinkedList<T>,
     current: Option<NonNull<DoublyLinkedListNode<T>>>,
@@ -308,5 +306,23 @@ impl<'a, T> Iterator for SinglyLinkedListIterator<'a, T> {
                 Some(node_ptr)
             }
         }
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for SinglyLinkedList<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut node = self.head;
+
+        if node.is_none() {
+            return write!(f, "{{}}");
+        }
+
+        while let Some(node_ptr) = node {
+            write!(f, ",\n")?;
+            <SinglyLinkedListNode<T> as fmt::Debug>::fmt(unsafe { node_ptr.as_ref() }, f)?;
+            node = unsafe { node_ptr.as_ref().next };
+        }
+
+        Ok(())
     }
 }

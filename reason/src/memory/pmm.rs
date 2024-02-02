@@ -151,10 +151,10 @@ impl<'a> BitmapAllocator<'a> {
             let index = bitmap.get_free_index().expect("Failed to get free index");
             let address = entry.base + index as u64 * PAGE_SIZE;
 
-            log::debug!(
-                "[pmm] fullfilled page allocation: {}",
-                address.as_physical()
-            );
+            // log::debug!(
+            //     "[pmm] fullfilled page allocation: {}",
+            //     address.as_physical()
+            // );
 
             return Some(PhysicalAddress::new(address));
         }
