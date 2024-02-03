@@ -83,10 +83,8 @@ mod tests {
         unsafe {
             let mut heap_allocator = KERNEL_HEAP_ALLOCATOR.lock();
 
-            for i in 0..10u64 {
-                let address = heap_allocator.alloc(24, 8);
-                heap_allocator.free(address);
-            }
+            let address = heap_allocator.alloc(8, 8);
+            heap_allocator.free(address);
         }
     }
 

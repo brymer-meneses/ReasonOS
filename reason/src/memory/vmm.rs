@@ -6,6 +6,7 @@ use crate::arch;
 use crate::arch::paging::PAGE_SIZE;
 use crate::data_structures::SinglyLinkedList;
 use crate::memory::PHYSICAL_MEMORY_MANAGER;
+use crate::misc::log;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -69,6 +70,9 @@ impl VirtualMemoryManager {
         }
 
         let vm_object_base = self.current_address + node_size;
+
+        log::info!("vm_node size {:x}", node_size);
+        log::info!("vm_object_base {vm_object_base}");
 
         self.allocated_objects.append_to_address(
             self.current_address,

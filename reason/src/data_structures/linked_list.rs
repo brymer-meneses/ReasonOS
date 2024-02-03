@@ -3,6 +3,7 @@ use core::ptr::addr_of_mut;
 use core::ptr::NonNull;
 
 use crate::memory::VirtualAddress;
+use crate::misc::log;
 use crate::misc::utils::size;
 
 #[repr(C)]

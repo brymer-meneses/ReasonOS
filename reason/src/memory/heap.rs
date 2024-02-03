@@ -80,7 +80,9 @@ trait BlockMetadata {
 
     unsafe fn get_header(&self) -> BlockHeader;
 
-    unsafe fn get_size(&self) -> u16;
+    unsafe fn get_total_size(&self) -> u16;
+    unsafe fn get_payload_size(&self) -> u16;
+
     unsafe fn get_payload_address(&self) -> VirtualAddress;
     unsafe fn get_is_used(&self) -> bool;
 
@@ -90,11 +92,16 @@ trait BlockMetadata {
 }
 
 impl BlockHeader {
-    fn get_size(&self) -> u16 {
+    fn payload_size(&self) -> u16 {
         self.data & !0b111_u16
     }
 
-    fn get_is_used(&self) -> bool {
+    /// total size of block plus the headers
+    fn total_size(&self) -> u16 {
+        self.payload_size() + 2 * size!(BlockHeader) as u16
+    }
+
+    fn is_used(&self) -> bool {
         self.data & 1 == 1
     }
 }
@@ -113,8 +120,14 @@ impl BlockMetadata for NonNull<Block> {
         (addr as *const BlockHeader).read()
     }
 
-    unsafe fn get_size(&self) -> u16 {
-        self.get_header().get_size()
+    /// get total size without the headers
+    unsafe fn get_payload_size(&self) -> u16 {
+        self.get_header().payload_size()
+    }
+
+    /// get total size this includes the payload and the headers
+    unsafe fn get_total_size(&self) -> u16 {
+        self.get_payload_size() + 2 * size!(BlockHeader) as u16
     }
 
     unsafe fn get_payload_address(&self) -> VirtualAddress {
@@ -128,7 +141,7 @@ impl BlockMetadata for NonNull<Block> {
     }
 
     unsafe fn get_is_used(&self) -> bool {
-        self.get_header().get_is_used()
+        self.get_header().is_used()
     }
 
     unsafe fn set_is_used(&self, set_use: bool) {
@@ -140,7 +153,7 @@ impl BlockMetadata for NonNull<Block> {
         }
     }
 
-    unsafe fn install_headers(&self, size: u16) {
+    unsafe fn install_headers(&self, payload_size: u16) {
         let addr = self.get_address().as_addr();
 
         // ┌────────┬───────────┬─────────┐
@@ -148,10 +161,10 @@ impl BlockMetadata for NonNull<Block> {
         // └────────┴───────────┴─────────┘
         // └─── `self` points here
         let start_header = addr as *mut BlockHeader;
-        start_header.write(BlockHeader { data: size });
+        start_header.write(BlockHeader { data: payload_size });
 
-        let end_header = (addr + 2 * size!(BlockHeader) + size as u64) as *mut BlockHeader;
-        end_header.write(BlockHeader { data: size });
+        let end_header = (addr + 2 * size!(BlockHeader) + payload_size as u64) as *mut BlockHeader;
+        end_header.write(BlockHeader { data: payload_size });
     }
 }
 
@@ -163,7 +176,7 @@ pub struct HeapRegion {
     free_blocks: DoublyLinkedList<Block>,
 }
 
-trait HeapRegionMetadata {
+trait HeapRegionExt {
     unsafe fn get_object(&self) -> NonNull<VirtualMemoryObject>;
 
     unsafe fn get_capacity(&self) -> u64;
@@ -198,14 +211,15 @@ impl Iterator for HeapRegionIterator {
         }
 
         let block = unsafe { NonNull::new_unchecked(self.current.as_addr() as *mut Block) };
-        self.current += unsafe { block.get_size() as u64 } + 2 * size!(BlockHeader);
+        self.current += unsafe { block.get_total_size() as u64 };
 
         Some(block)
     }
 }
 
-impl HeapRegionMetadata for NonNull<HeapRegion> {
+impl HeapRegionExt for NonNull<HeapRegion> {
     unsafe fn add_to_free_list(&mut self, block: NonNull<Block>) {
+        log::info!("Writing to {}", block.get_payload_address());
         self.as_mut()
             .free_blocks
             .append_to_address(block.get_payload_address(), Block {});
@@ -238,8 +252,6 @@ impl HeapRegionMetadata for NonNull<HeapRegion> {
         let total_heap_region_size = size!(HeapRegion) + size!(Option<NonNull<()>>);
         let total_vm_object_size = size!(VirtualMemoryObject) + size!(Option<NonNull<()>>);
 
-        log::info!("length {}", object.length);
-
         let length = object.length - (total_heap_region_size + total_vm_object_size);
 
         length
@@ -247,6 +259,7 @@ impl HeapRegionMetadata for NonNull<HeapRegion> {
 
     unsafe fn get_end_address(&self) -> VirtualAddress {
         let end_address = self.as_ref().base + self.get_capacity();
+
         assert!(end_address.is_page_aligned());
 
         end_address
@@ -272,7 +285,7 @@ impl HeapRegionMetadata for NonNull<HeapRegion> {
     unsafe fn iter_blocks(&self) -> HeapRegionIterator {
         HeapRegionIterator {
             current: self.get_payload_address(),
-            end: self.get_end_address(),
+            end: self.get_current_address(),
         }
     }
 
@@ -282,36 +295,34 @@ impl HeapRegionMetadata for NonNull<HeapRegion> {
 
         let current_address = self.get_current_address();
 
-        let (total_size, padding) = {
-            let total_allocated = self.get_total_allocated();
-
+        let padding = {
             let payload_address = current_address + size!(BlockHeader);
             let aligned_address = align_up(payload_address.as_addr(), alignment).as_virtual();
-
-            let padding = aligned_address.as_addr() - payload_address.as_addr();
-
-            let aligned_size = size + padding as u16;
-
-            let total_size = cmp::max(
-                align_up(aligned_size as u64, 8),
-                size!(DoublyLinkedListNode<Block>),
-            );
-
-            if total_size + total_allocated > self.get_capacity() {
-                return None;
-            }
-
-            self.as_mut().total_allocated += total_size;
-            (total_size, padding)
+            aligned_address.as_addr() - payload_address.as_addr()
         };
 
-        debug_assert_eq!(total_size % 8, 0);
+        let payload_size = cmp::max(align_up(size as u64, 8), size!(DoublyLinkedListNode<Block>));
+        if payload_size + self.get_total_allocated() > self.get_capacity() {
+            return None;
+        }
+
+        self.as_mut().total_allocated += payload_size + 2 * size!(BlockHeader);
+
+        debug_assert_eq!(payload_size % 8, 0);
         debug_assert_eq!(current_address.as_addr() % 2, 0);
 
         let block = {
             let block = NonNull::new_unchecked(current_address.as_addr() as *mut Block);
-            block.install_headers(total_size as u16);
+
+            block.install_headers(payload_size as u16);
             block.set_is_used(true);
+
+            log::info!("block allocated at {current_address}");
+            log::info!("block allocated with padidng 0x{:x}", padding);
+            log::info!(
+                "block allocated payload at {}",
+                block.get_payload_address() + padding
+            );
             block
         };
 
@@ -350,7 +361,7 @@ impl ExplicitFreeList {
                 let block_addr = addr_of!(node) as u64 - size!(BlockHeader);
                 let block = NonNull::new_unchecked(block_addr as *mut Block);
 
-                if block.get_is_used() && block.get_size() as u64 >= size {
+                if block.get_is_used() && block.get_payload_size() as u64 >= size {
                     block.set_is_used(true);
 
                     // TODO: take into account alignment stuff here
@@ -381,7 +392,11 @@ impl ExplicitFreeList {
         let object = vmm.allocate_object(size);
 
         let object_base = object.as_ref().base;
+        log::info!("{:x}", self.regions.list_node_size());
+
         let heap_region_base = object_base + self.regions.list_node_size();
+
+        log::info!("heap region allocated at {}", object_base);
         self.regions.append_to_address(
             object_base,
             HeapRegion {
@@ -391,10 +406,14 @@ impl ExplicitFreeList {
             },
         );
 
+        log::info!("object_base {object_base}");
+        log::info!("heap_region_base {heap_region_base}");
+
         self.regions.tail().unwrap_unchecked()
     }
 
     pub unsafe fn free(&mut self, address: VirtualAddress) {
+        log::info!("freeing address {address}");
         for node in self.regions.iter() {
             // ┌─ Heap Region Node ─┐
             // ┌──────┬─────────────┐
@@ -402,24 +421,36 @@ impl ExplicitFreeList {
             // └──────┴─────────────┘
             // └─────── node points here
 
-            let region_addr = addr_of!(node) as u64 + size!(Option<NonNull<()>>);
+            // this doesn't seem to work?
+            // addr_of!(node) doesn't seem to point to the correct address
+            // let region_addr = addr_of!(node) as u64 + size!(Option<NonNull<()>>);
+            let region_addr = node.as_ptr() as u64 + size!(Option<NonNull<()>>);
+
             let mut region = NonNull::new_unchecked(region_addr as *mut HeapRegion);
 
-            // the address doesn't belong to this region
-            if !(region.get_payload_address() >= address && address < region.get_end_address()) {
-                log::info!("{}", region.get_payload_address());
-                log::info!("{}", region.get_end_address());
-                // log::info!("{}", address);
+            // log::info!("node.as_ptr() {:016x}", node.as_ptr() as u64);
+            // log::info!("region addr {}", region_addr.as_virtual());
+            // log::info!("region payload addr {}", region.get_payload_address());
+            log::info!("payload addr {}", region.get_payload_address());
 
+            // the address doesn't belong to this region
+            if !(region.get_payload_address() <= address && address < region.get_end_address()) {
                 continue;
             }
 
             for block in region.iter_blocks() {
                 let begin = block.get_payload_address();
-                let end = begin + block.get_size().into();
+                let end = begin + block.get_payload_size().into();
+
+                log::info!("begin addr {}", begin);
+                log::info!("addr {}", address);
+                log::info!("end addr {}", end);
+
+                let block_addr = block.as_ptr() as u64;
 
                 // not within the block
-                if !(begin >= address && address < end) {
+                if !(begin <= address && address < end) {
+                    log::info!("here?\n");
                     continue;
                 }
 
@@ -427,36 +458,38 @@ impl ExplicitFreeList {
                 // ┌────────┬───────────┬─────────┬────────┬───────────┬─────────┬────────┬───────────┬────────┐
                 // │ Header │  Payload  │ Header  │ Header │  Payload  │ Header  │ Header │  Payload  │ Header │
                 // └────────┴───────────┴─────────┴────────┴───────────┴─────────┴────────┴───────────┴────────┘
-                //                                └────── block points here ─────┘
+                //                                └────── block_addr
                 let prev_block = 'prev_block: {
-                    let block_addr = addr_of!(block) as u64;
+                    let header_addr = block_addr - size!(BlockHeader);
+                    let header = (header_addr as *const BlockHeader).read();
 
-                    let prev_header_addr = block_addr - size!(BlockHeader);
-                    let prev_header = (prev_header_addr as *const BlockHeader).read();
+                    let prev_block_addr = block_addr - header.total_size() as u64;
 
-                    let prev_block_addr =
-                        block_addr - 2 * size!(BlockHeader) - prev_header.get_size() as u64;
-
-                    if prev_header_addr < region.get_payload_address().as_addr() {
+                    if prev_block_addr < region.get_payload_address().as_addr() {
                         break 'prev_block None;
                     }
 
                     Some(NonNull::new_unchecked(prev_block_addr as *mut Block))
                 };
 
-                let next_block = 'next_block: {
-                    let next_block_addr =
-                        addr_of!(block) as u64 + 2 * size!(BlockHeader) + block.get_size() as u64;
+                debug_assert!(prev_block.is_none());
 
-                    if next_block_addr >= region.get_end_address().as_addr() {
+                let next_block = 'next_block: {
+                    let next_block_addr = block_addr + block.get_total_size() as u64;
+
+                    if next_block_addr >= region.get_current_address().as_addr() {
                         break 'next_block None;
                     }
 
                     Some(NonNull::new_unchecked(next_block_addr as *mut Block))
                 };
 
+                debug_assert!(next_block.is_none());
+
                 match (prev_block, next_block) {
                     (None, None) => {
+                        log::debug!("reached here!");
+
                         block.set_is_used(false);
 
                         region.add_to_free_list(block);
@@ -468,9 +501,9 @@ impl ExplicitFreeList {
                     //                                └────── block points here ─────┘
                     //          └────────────────────────────── total size ───────────────────────────────┘
                     (Some(prev_block), Some(next_block)) => {
-                        let total_size = prev_block.get_size()
-                            + block.get_size()
-                            + next_block.get_size()
+                        let total_size = prev_block.get_payload_size()
+                            + block.get_payload_size()
+                            + next_block.get_payload_size()
                             + 4 * size!(BlockHeader) as u16;
 
                         region.remove_from_free_list(prev_block);
@@ -488,8 +521,8 @@ impl ExplicitFreeList {
                     //                                └────── block points here ─────┘
                     //          └────────── total size ────────────────────┘
                     (Some(prev_block), None) => {
-                        let total_size = prev_block.get_size()
-                            + block.get_size()
+                        let total_size = prev_block.get_payload_size()
+                            + block.get_payload_size()
                             + 2 * size!(BlockHeader) as u16;
 
                         region.remove_from_free_list(prev_block);
@@ -507,8 +540,8 @@ impl ExplicitFreeList {
                     //                                └────── block points here ─────┘
                     //                                         └────────── total size ────────────────────┘
                     (None, Some(next_block)) => {
-                        let total_size = block.get_size()
-                            + next_block.get_size()
+                        let total_size = block.get_payload_size()
+                            + next_block.get_payload_size()
                             + 2 * size!(BlockHeader) as u16;
 
                         region.remove_from_free_list(block);
