@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::arch::paging::PAGE_SIZE;
-use core::{fmt, ops::Add, ops::AddAssign};
+use core::{fmt, ops::Add, ops::AddAssign, ops::Sub};
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq)]
@@ -35,6 +35,10 @@ impl PhysicalAddress {
     pub const fn is_null(&self) -> bool {
         self.0 == 0
     }
+
+    pub const fn align_up_offset(&self, alignment: u64) -> u64 {
+        (alignment - (self.0 % alignment)) % alignment
+    }
 }
 
 impl VirtualAddress {
@@ -60,6 +64,10 @@ impl VirtualAddress {
 
     pub const fn is_null(&self) -> bool {
         self.0 == 0
+    }
+
+    pub const fn align_up_offset(&self, alignment: u64) -> u64 {
+        (alignment - (self.0 % alignment)) % alignment
     }
 }
 
@@ -127,6 +135,20 @@ impl AddAssign<u64> for VirtualAddress {
 impl AddAssign<u64> for PhysicalAddress {
     fn add_assign(&mut self, rhs: u64) {
         self.0 += rhs;
+    }
+}
+
+impl Sub<VirtualAddress> for VirtualAddress {
+    type Output = VirtualAddress;
+    fn sub(self, rhs: VirtualAddress) -> Self::Output {
+        VirtualAddress::new(self.0 - rhs.0)
+    }
+}
+
+impl Add<VirtualAddress> for VirtualAddress {
+    type Output = VirtualAddress;
+    fn add(self, rhs: VirtualAddress) -> Self::Output {
+        VirtualAddress::new(self.0 + rhs.0)
     }
 }
 impl Add<u64> for VirtualAddress {

@@ -1,4 +1,4 @@
-use core::cell::OnceCell;
+use core::{cell::OnceCell, ptr::NonNull};
 use spin::{Mutex, MutexGuard};
 
 #[inline]

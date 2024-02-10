@@ -71,7 +71,6 @@ impl VirtualMemoryManager {
 
         let vm_object_base = self.current_address + node_size;
 
-        log::info!("vm_node size {:x}", node_size);
         log::info!("vm_object_base {vm_object_base}");
 
         self.allocated_objects.append_to_address(

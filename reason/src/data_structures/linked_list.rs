@@ -3,7 +3,6 @@ use core::ptr::addr_of_mut;
 use core::ptr::NonNull;
 
 use crate::memory::VirtualAddress;
-use crate::misc::log;
 use crate::misc::utils::size;
 
 #[repr(C)]
@@ -21,7 +20,7 @@ pub struct SinglyLinkedList<T> {
     pub length: usize,
 }
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Debug)]
 pub struct DoublyLinkedListNode<T> {
     pub next: Option<NonNull<DoublyLinkedListNode<T>>>,
@@ -29,7 +28,7 @@ pub struct DoublyLinkedListNode<T> {
     pub data: T,
 }
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Debug)]
 pub struct SinglyLinkedListNode<T> {
     pub next: Option<NonNull<SinglyLinkedListNode<T>>>,
