@@ -35,11 +35,11 @@ extern "C" fn _start() -> ! {
     cpu::halt();
 }
 
+use crate::misc::qemu::QemuExitCode;
+use misc::qemu;
+
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    use crate::misc::qemu::QemuExitCode;
-    use misc::qemu;
-
     serial::println!("{}", info.red());
 
     qemu::exit(QemuExitCode::Failed);
@@ -47,9 +47,25 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 }
 
 #[cfg(test)]
-fn test_runner(tests: &[&dyn Fn()]) {
+fn test_runner(tests: &[&dyn Testable]) {
     serial::println!("========= Running {} tests ======", tests.len());
     for test in tests {
-        test();
+        test.run();
+    }
+
+    qemu::exit(QemuExitCode::Success);
+}
+
+pub trait Testable {
+    fn run(&self);
+}
+
+impl<T> Testable for T
+where
+    T: Fn(),
+{
+    fn run(&self) {
+        serial::println!("Running {}", core::any::type_name::<T>());
+        self();
     }
 }
