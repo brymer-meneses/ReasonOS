@@ -1,3 +1,4 @@
+.PHONY: build
 
 MODE := default
 PROFILE := debug
@@ -9,6 +10,9 @@ QEMUFLAGS := \
 	-D qemu-log.txt \
 	-d int -M smm=off \
 	-device isa-debug-exit,iobase=0xf4,iosize=0x0f
+
+RUSTFLAGS := \
+	-Cforce-frame-pointers=yes
 
 CARGO_FLAGS := \
 	--manifest-path=reason/Cargo.toml \
@@ -38,11 +42,11 @@ ifeq ($(wildcard build/limine/.),)
 	@$(MAKE) -C build/limine
 endif
 
-check:
-	@cargo check $(CARGO_FLAGS)
+build:
+	RUSTFLAGS="$(RUSTFLAGS)" cargo build $(CARGO_FLAGS)
 
-kernel: check setup
-	@export KERNEL_EXECUTABLE=$$(cargo build $(CARGO_FLAGS) --message-format=json | jq -r 'select(.executable) | .executable'); \
+kernel: build setup
+	@export KERNEL_EXECUTABLE=$$(RUSTFLAGS="$(RUSTFLAGS)" cargo build $(CARGO_FLAGS) --message-format=json | jq -r 'select(.executable) | .executable'); \
 	cp $$KERNEL_EXECUTABLE build/bin/kernel
 
 run: iso 

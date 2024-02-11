@@ -3,6 +3,7 @@
 pub mod cpu;
 pub mod interrupt;
 pub mod paging;
+pub mod stacktrace;
 
 mod gdt;
 mod idt;
