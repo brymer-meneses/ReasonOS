@@ -1,17 +1,16 @@
-#![allow(unused)]
+#![allow(dead_code)]
 
 use bitflags::bitflags;
-use core::ptr::addr_of;
+use core::ptr::{addr_of, addr_of_mut, NonNull};
 
 mod address;
 mod heap;
 mod pmm;
 mod vmm;
-
 use crate::arch::paging::{self, PAGE_SIZE};
 use crate::boot::MEMORY_MAP_REQUEST;
 use crate::misc::log;
-use crate::misc::utils::{align_down, OnceCellMutex};
+use crate::misc::utils::{align_up, OnceCellMutex};
 
 use pmm::BitmapAllocator;
 use vmm::VirtualMemoryManager;
@@ -26,7 +25,7 @@ pub static mut VIRTUAL_MEMORY_MANAGER: OnceCellMutex<VirtualMemoryManager> = Onc
 pub static mut KERNEL_HEAP_ALLOCATOR: OnceCellMutex<ExplicitFreeList> = OnceCellMutex::new();
 
 bitflags! {
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     pub struct VirtualMemoryFlags: u8 {
         const Writeable = 1 << 0;
         const Executable = 1 << 1;
@@ -46,10 +45,10 @@ pub fn initialize() {
 
         let pagemap = paging::get_initial_pagemap();
 
-        let kernel_heap_start = VirtualAddress::new(align_down(
-            &__kernel_end_address as *const _ as u64,
-            PAGE_SIZE,
-        ));
+        let kernel_heap_start =
+            VirtualAddress::new(align_up(addr_of!(__kernel_end_address) as u64, PAGE_SIZE));
+
+        log::debug!("Kernel Heap Start {}", kernel_heap_start);
 
         VIRTUAL_MEMORY_MANAGER.set(VirtualMemoryManager::new(
             pagemap,
@@ -59,9 +58,9 @@ pub fn initialize() {
 
         log::info!("Initialized VMM");
 
-        KERNEL_HEAP_ALLOCATOR.set(ExplicitFreeList::new(
-            addr_of!(VIRTUAL_MEMORY_MANAGER) as *mut OnceCellMutex<VirtualMemoryManager>
-        ));
+        KERNEL_HEAP_ALLOCATOR.set(ExplicitFreeList::new(NonNull::new_unchecked(addr_of_mut!(
+            VIRTUAL_MEMORY_MANAGER
+        ))));
 
         log::info!("Initialized Kernel Heap");
     }
@@ -70,4 +69,42 @@ pub fn initialize() {
 extern "C" {
     static __kernel_end_address: u8;
     static __kernel_start_address: u8;
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test_case]
+    fn test_linked_list() {
+        unsafe {
+            let mut heap_allocator = KERNEL_HEAP_ALLOCATOR.lock();
+
+            for _ in 0..10 {
+                let addr = heap_allocator.alloc(8);
+                heap_allocator.free(addr);
+            }
+
+            let address1 = heap_allocator.alloc(16);
+            let address2 = heap_allocator.alloc(16);
+            let address3 = heap_allocator.alloc(16);
+
+            heap_allocator.free(address1);
+            heap_allocator.free(address3);
+            heap_allocator.free(address2);
+        }
+    }
+
+    // TODO: fix this
+    // #[test_case]
+    // fn test_suspicious_alloc() {
+    //     unsafe {
+    //         let mut heap_allocator = KERNEL_HEAP_ALLOCATOR.lock();
+    //
+    //         for i in 1..1000u64 {
+    //             heap_allocator.alloc(i, 8);
+    //         }
+    //     }
+    // }
 }

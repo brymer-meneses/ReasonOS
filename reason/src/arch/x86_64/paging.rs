@@ -54,7 +54,7 @@ pub unsafe fn map(
     pml1.as_ptr().add(pml1_index).write(entry);
 
     log::debug!(
-        "Successfully mapped physical address {} to virtual address {}",
+        "[paging] Successfully mapped physical address {} to virtual address {}",
         physical_addr,
         virtual_addr
     );
@@ -151,7 +151,7 @@ unsafe fn get_next_level(
     let entry = root.add(index).read();
 
     if entry & PTE_PRESENT != 0 {
-        return VirtualAddress::new(((entry & PTE_ADDRESS_MASK) + HHDM_OFFSET));
+        return VirtualAddress::new((entry & PTE_ADDRESS_MASK) + HHDM_OFFSET);
     }
 
     if !should_allocate {
@@ -177,9 +177,9 @@ unsafe fn get_next_level(
 
     root.add(index).write(new_level);
 
-    VirtualAddress::new(((new_level & PTE_ADDRESS_MASK) + HHDM_OFFSET))
+    VirtualAddress::new((new_level & PTE_ADDRESS_MASK) + HHDM_OFFSET)
 }
 
 pub fn get_initial_pagemap() -> VirtualAddress {
-    unsafe { VirtualAddress::new(((cpu::read_cr3() & PTE_ADDRESS_MASK) + HHDM_OFFSET)) }
+    unsafe { VirtualAddress::new((cpu::read_cr3() & PTE_ADDRESS_MASK) + HHDM_OFFSET) }
 }

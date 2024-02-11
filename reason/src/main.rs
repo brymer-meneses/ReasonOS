@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(custom_test_frameworks)]
+#![feature(non_null_convenience)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
@@ -36,13 +37,18 @@ extern "C" fn _start() -> ! {
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    serial::print!("{}", info.red());
+    use crate::misc::qemu::QemuExitCode;
+    use misc::qemu;
+
+    serial::println!("{}", info.red());
+
+    qemu::exit(QemuExitCode::Failed);
     cpu::hcf();
 }
 
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
-    log::info!("Running {} tests", tests.len());
+    serial::println!("========= Running {} tests ======", tests.len());
     for test in tests {
         test();
     }

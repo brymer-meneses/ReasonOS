@@ -8,6 +8,7 @@ QEMUFLAGS := \
 	-display none \
 	-D qemu-log.txt \
 	-d int -M smm=off \
+	-device isa-debug-exit,iobase=0xf4,iosize=0x0f
 
 CARGO_FLAGS := \
 	--manifest-path=reason/Cargo.toml \
@@ -38,7 +39,7 @@ ifeq ($(wildcard build/limine/.),)
 endif
 
 check:
-	@cargo check $(CARGO_FLAGS)
+	cargo check $(CARGO_FLAGS)
 
 kernel: check setup
 	@export KERNEL_EXECUTABLE=$$(cargo build $(CARGO_FLAGS) --message-format=json | jq -r 'select(.executable) | .executable'); \
@@ -64,3 +65,5 @@ iso: setup kernel
 		build/iso_root -o build/reason.iso
 	@./build/limine/limine bios-install build/reason.iso
 
+clean:
+	$(RM) -rf build

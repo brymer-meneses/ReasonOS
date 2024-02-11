@@ -1,16 +1,16 @@
-#![allow(unused)]
+#![allow(dead_code)]
 
 use core::ptr::NonNull;
 
+use crate::memory::IntoAddress;
 use core::mem;
 use limine::{MemmapEntry, MemmapResponse, MemoryMapEntryType};
-use spin::Mutex;
 
 use crate::arch::paging::PAGE_SIZE;
 use crate::boot::HHDM_OFFSET;
 use crate::misc::log;
 
-use crate::memory::address::{PhysicalAddress, VirtualAddress};
+use crate::memory::address::PhysicalAddress;
 
 #[derive(Debug)]
 struct Bitmap {
@@ -150,9 +150,14 @@ impl<'a> BitmapAllocator<'a> {
 
             let index = bitmap.get_free_index().expect("Failed to get free index");
             let address = entry.base + index as u64 * PAGE_SIZE;
+
+            // log::debug!(
+            //     "[pmm] fullfilled page allocation: {}",
+            //     address.as_physical()
+            // );
+
             return Some(PhysicalAddress::new(address));
         }
-        {}
         None
     }
 
