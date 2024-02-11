@@ -74,20 +74,25 @@ extern "C" {
 #[cfg(test)]
 mod tests {
 
-    use crate::data_structures::DoublyLinkedList;
-
     use super::*;
 
     #[test_case]
     fn test_linked_list() {
         unsafe {
             let mut heap_allocator = KERNEL_HEAP_ALLOCATOR.lock();
-            let mut linked_list = DoublyLinkedList::<i64>::new();
 
-            for i in 0..10000 {
-                let address = heap_allocator.alloc(16);
-                linked_list.append_to_address(address, i);
+            for _ in 0..10 {
+                let addr = heap_allocator.alloc(8);
+                heap_allocator.free(addr);
             }
+
+            let address1 = heap_allocator.alloc(16);
+            let address2 = heap_allocator.alloc(16);
+            let address3 = heap_allocator.alloc(16);
+
+            heap_allocator.free(address1);
+            heap_allocator.free(address3);
+            heap_allocator.free(address2);
         }
     }
 

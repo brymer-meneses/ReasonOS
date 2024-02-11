@@ -112,7 +112,7 @@ impl<T> DoublyLinkedList<T> {
         }
     }
 
-    pub fn iter(&self) -> DoublyLinkedListIterator<T> {
+    pub fn iter_nodes(&self) -> DoublyLinkedListIterator<T> {
         DoublyLinkedListIterator {
             list: self,
             current: self.head,
@@ -219,7 +219,7 @@ impl<T> SinglyLinkedList<T> {
         }
     }
 
-    pub fn iter(&self) -> SinglyLinkedListIterator<T> {
+    pub fn iter_nodes(&self) -> SinglyLinkedListIterator<T> {
         SinglyLinkedListIterator {
             list: self,
             current: self.head,
