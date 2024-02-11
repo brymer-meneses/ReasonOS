@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use bitflags::bitflags;
+use core::alloc::GlobalAlloc;
 use core::ptr::{addr_of, addr_of_mut, NonNull};
 
 mod address;
@@ -22,6 +23,8 @@ use self::heap::ExplicitFreeList;
 
 pub static mut PHYSICAL_MEMORY_MANAGER: OnceCellMutex<BitmapAllocator> = OnceCellMutex::new();
 pub static mut VIRTUAL_MEMORY_MANAGER: OnceCellMutex<VirtualMemoryManager> = OnceCellMutex::new();
+
+#[global_allocator]
 pub static mut KERNEL_HEAP_ALLOCATOR: OnceCellMutex<ExplicitFreeList> = OnceCellMutex::new();
 
 bitflags! {
@@ -66,6 +69,24 @@ pub fn initialize() {
     }
 }
 
+use core::alloc::Layout;
+
+unsafe impl GlobalAlloc for OnceCellMutex<ExplicitFreeList> {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let mut allocator = self.lock();
+
+        allocator
+            .alloc_aligned(layout.size() as u64, layout.align() as u64)
+            .as_addr() as *mut u8
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
+        let mut allocator = self.lock();
+        let address = VirtualAddress::new(ptr as u64);
+        allocator.free(address)
+    }
+}
+
 extern "C" {
     static __kernel_end_address: u8;
     static __kernel_start_address: u8;
@@ -96,15 +117,23 @@ mod tests {
         }
     }
 
-    // TODO: fix this
-    // #[test_case]
-    // fn test_suspicious_alloc() {
-    //     unsafe {
-    //         let mut heap_allocator = KERNEL_HEAP_ALLOCATOR.lock();
-    //
-    //         for i in 1..1000u64 {
-    //             heap_allocator.alloc(i, 8);
-    //         }
-    //     }
-    // }
+    #[test_case]
+    fn test_another_linked_list() {
+        unsafe {
+            let mut heap_allocator = KERNEL_HEAP_ALLOCATOR.lock();
+
+            for _ in 0..10 {
+                let addr = heap_allocator.alloc(8);
+                heap_allocator.free(addr);
+            }
+
+            let address1 = heap_allocator.alloc(16);
+            let address2 = heap_allocator.alloc(16);
+            let address3 = heap_allocator.alloc(16);
+
+            heap_allocator.free(address1);
+            heap_allocator.free(address3);
+            heap_allocator.free(address2);
+        }
+    }
 }

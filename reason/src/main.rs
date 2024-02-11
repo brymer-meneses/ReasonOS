@@ -5,6 +5,8 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+extern crate alloc;
+
 mod arch;
 mod boot;
 mod data_structures;
@@ -12,6 +14,7 @@ mod drivers;
 mod memory;
 mod misc;
 
+use alloc::boxed::Box;
 use drivers::framebuffer;
 use drivers::serial;
 
@@ -32,11 +35,15 @@ extern "C" fn _start() -> ! {
     #[cfg(test)]
     test_main();
 
+    let mut memory = Box::new(50);
+    *memory = 5;
+
+    log::info!("{}", memory);
+
     cpu::halt();
 }
 
-use crate::misc::qemu::QemuExitCode;
-use misc::qemu;
+use crate::misc::qemu::{self, QemuExitCode};
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
@@ -47,25 +54,15 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 }
 
 #[cfg(test)]
+use crate::misc::Testable;
+
+#[cfg(test)]
 fn test_runner(tests: &[&dyn Testable]) {
     serial::println!("========= Running {} tests ======", tests.len());
+
     for test in tests {
         test.run();
     }
 
     qemu::exit(QemuExitCode::Success);
-}
-
-pub trait Testable {
-    fn run(&self);
-}
-
-impl<T> Testable for T
-where
-    T: Fn(),
-{
-    fn run(&self) {
-        serial::println!("Running {}", core::any::type_name::<T>());
-        self();
-    }
 }

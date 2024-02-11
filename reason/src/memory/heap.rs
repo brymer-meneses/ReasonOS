@@ -43,9 +43,9 @@
 use crate::data_structures::{DoublyLinkedList, DoublyLinkedListNode, SinglyLinkedList};
 use crate::memory::IntoAddress;
 use crate::misc::log;
-use crate::misc::utils::{size, OnceCellMutex};
+use crate::misc::utils::{align_up, size, OnceCellMutex};
 use core::cmp;
-use core::ptr::{addr_of, NonNull};
+use core::ptr::NonNull;
 
 use super::vmm::{VirtualMemoryManager, VirtualMemoryObject};
 use super::VirtualAddress;
@@ -134,6 +134,11 @@ struct HeapRegionIterator {
 
 trait HeapRegionPtr {
     unsafe fn allocate_block(&mut self, size: u64) -> Option<NonNull<Block>>;
+    unsafe fn allocate_block_aligned(
+        &mut self,
+        size: u64,
+        alignment: u64,
+    ) -> Option<(NonNull<Block>, u64)>;
 
     unsafe fn get_virtual_memory_object(&self) -> NonNull<VirtualMemoryObject>;
 
@@ -154,7 +159,6 @@ impl HeapRegionPtr for NonNull<HeapRegion> {
         debug_assert!(size < u32::MAX.into());
 
         let current_address = self.get_current_address();
-        log::info!("current_address {current_address}");
 
         debug_assert!(
             current_address.is_aligned_to(8),
@@ -178,6 +182,45 @@ impl HeapRegionPtr for NonNull<HeapRegion> {
         });
 
         Some(block)
+    }
+
+    unsafe fn allocate_block_aligned(
+        &mut self,
+        size: u64,
+        alignment: u64,
+    ) -> Option<(NonNull<Block>, u64)> {
+        debug_assert!(size < u32::MAX.into());
+
+        let current_address = self.get_current_address();
+
+        debug_assert!(
+            current_address.is_aligned_to(8),
+            "address to put a block must be 8 aligned!"
+        );
+
+        let padding = {
+            let payload_address = (current_address + size!(BlockHeader)).as_addr();
+            let aligned_address = align_up(payload_address, alignment);
+            aligned_address - payload_address
+        };
+
+        let size = cmp::max(size, size!(DoublyLinkedListNode<Block>));
+        let total_size = 2 * size!(BlockHeader) + size;
+
+        if current_address + total_size > self.get_end_address() {
+            return None;
+        }
+
+        self.as_mut().total_allocated += total_size;
+
+        let block = NonNull::new_unchecked(current_address.as_addr() as *mut Block);
+
+        block.install_headers(BlockHeader {
+            size: size as u32,
+            is_used: true,
+        });
+
+        Some((block, padding))
     }
 
     unsafe fn add_to_free_list(&mut self, mut block: NonNull<Block>) {
@@ -274,7 +317,7 @@ impl ExplicitFreeList {
         }
     }
 
-    pub unsafe fn alloc(&mut self, size: u64) -> VirtualAddress {
+    pub unsafe fn alloc_aligned(&mut self, size: u64, alignment: u64) -> VirtualAddress {
         for region in self
             .regions
             .iter_nodes()
@@ -291,11 +334,60 @@ impl ExplicitFreeList {
                 let block_addr = node.as_ptr() as u64 - size!(BlockHeader);
                 let mut block = NonNull::new_unchecked(block_addr as *mut Block);
 
+                if block.get_is_used() {
+                    continue;
+                }
+
+                let aligned_address = align_up(block.get_payload_address().as_addr(), alignment);
+                let padding = aligned_address - block.get_payload_size() as u64;
+
+                if block.get_payload_size() as u64 >= size + padding {
+                    block.set_is_used(true);
+                    return block.get_payload_address() + padding;
+                }
+            }
+        }
+
+        let mut current_region = match self.regions.tail() {
+            None => self.allocate_region(size),
+            Some(region) => region,
+        };
+
+        let (block, padding) = match current_region.allocate_block_aligned(size, alignment) {
+            None => self
+                .allocate_region(size)
+                .allocate_block_aligned(size, alignment)
+                .unwrap_unchecked(),
+
+            Some((block, padding)) => (block, padding),
+        };
+
+        block.get_payload_address() + padding
+    }
+
+    pub unsafe fn alloc(&mut self, size: u64) -> VirtualAddress {
+        for mut region in self
+            .regions
+            .iter_nodes()
+            .map(|mut node| node.as_mut().ptr_to_data())
+        {
+            for node in region.as_ref().free_blocks.iter_nodes() {
+                //          ┌─── block payload ────┐
+                // ┌────────┬──────┬──────┬────────┬────────┐
+                // │ header │ next │ prev │        │ header │
+                // └────────┴──────┴──────┴────────┴────────┘
+                // │        └─── node lives here
+                // └─── we want to get this address to get the size
+
+                let block_addr = node.as_ptr() as u64 - size!(BlockHeader);
+                let mut block = NonNull::new_unchecked(block_addr as *mut Block);
+
                 if !block.get_is_used() && block.get_payload_size() as u64 >= size {
                     block.set_is_used(true);
-                    log::info!("reusing {}", block.get_payload_address());
+                    region.remove_from_free_list(block);
+
                     return block.get_payload_address();
-                }
+                };
             }
         }
 

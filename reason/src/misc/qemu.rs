@@ -12,4 +12,3 @@ pub fn exit(exit_code: QemuExitCode) {
         asm!("out dx, al", in("dx") QEMU_PORT, in("al") exit_code as u8, options(nomem, nostack, preserves_flags));
     }
 }
-
