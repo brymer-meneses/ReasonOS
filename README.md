@@ -9,11 +9,11 @@ Yet another Operating System in Rust. Motivating myself to live, I guess?
 - [x] Exception Handling
 - [x] Serial Driver 
 
-- [ ] Memory Management
+- [x] Memory Management
     - [x] Physical Memory Manager
     - [x] Virtual Address Mapping
-    - [ ] Virtual Memory Manager
-    - [ ] Heap Allocator
+    - [x] Virtual Memory Manager
+    - [x] Heap Allocator
 
 - [ ] Scheduler
 - [ ] Filesystems
@@ -26,3 +26,6 @@ Yet another Operating System in Rust. Motivating myself to live, I guess?
     - [ ] GCC
     - [ ] Vim
     
+### TODOs
+- [ ] Use a slab allocator for small allocations
+- [ ] Hunt for bugs in my explicit free list allocator
