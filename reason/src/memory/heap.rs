@@ -318,12 +318,12 @@ impl ExplicitFreeList {
     }
 
     pub unsafe fn alloc_aligned(&mut self, size: u64, alignment: u64) -> VirtualAddress {
-        for region in self
+        for mut region in self
             .regions
             .iter_nodes()
-            .map(|mut node| node.as_mut().ptr_to_data().read())
+            .map(|mut node| node.as_mut().ptr_to_data())
         {
-            for node in region.free_blocks.iter_nodes() {
+            for node in region.as_ref().free_blocks.iter_nodes() {
                 //          ┌─── block payload ────┐
                 // ┌────────┬──────┬──────┬────────┬────────┐
                 // │ header │ next │ prev │        │ header │
@@ -343,6 +343,8 @@ impl ExplicitFreeList {
 
                 if block.get_payload_size() as u64 >= size + padding {
                     block.set_is_used(true);
+                    region.remove_from_free_list(block);
+
                     return block.get_payload_address() + padding;
                 }
             }
