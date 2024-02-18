@@ -12,6 +12,7 @@ panic = "abort"
 [dependencies]
 bitflags = "2.4.1"
 limine = "0.1.12"
+rustc-demangle = {version= "0.1.23"}
 spin = "0.9.8"
 
 [build-dependencies]

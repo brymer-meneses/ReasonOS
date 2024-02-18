@@ -51,7 +51,7 @@ pub unsafe fn map(
 
     let entry = set_flags(physical_addr, flags);
 
-    pml1.as_ptr().add(pml1_index).write(entry);
+    pml1.cast::<u64>().add(pml1_index).write(entry);
 
     log::debug!(
         "[paging] Successfully mapped physical address {} to virtual address {}",
@@ -76,9 +76,9 @@ pub unsafe fn unmap(
     let pml2 = get_next_level(pml3, pml3_index, flags, false);
     let pml1 = get_next_level(pml2, pml2_index, flags, false);
 
-    let entry = set_flags(physical_addr, flags);
+    let _entry = set_flags(physical_addr, flags);
 
-    let addr = pml1.as_ptr().add(pml1_index).as_ref().unwrap() & PTE_ADDRESS_MASK;
+    let addr = pml1.cast::<u64>().add(pml1_index).as_ref().unwrap() & PTE_ADDRESS_MASK;
 
     PHYSICAL_MEMORY_MANAGER
         .lock()
@@ -147,7 +147,7 @@ unsafe fn get_next_level(
     flags: VirtualMemoryFlags,
     should_allocate: bool,
 ) -> VirtualAddress {
-    let root = root.as_ptr();
+    let root = root.cast::<u64>();
     let entry = root.add(index).read();
 
     if entry & PTE_PRESENT != 0 {

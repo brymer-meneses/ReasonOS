@@ -39,3 +39,9 @@ extern "C" fn _start() -> ! {
 
     cpu::halt();
 }
+
+#[cfg(test)]
+#[test_case]
+fn test_stacktrace() {
+    panic!("At the disco!");
+}
