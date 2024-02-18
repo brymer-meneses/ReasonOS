@@ -43,7 +43,7 @@ ifeq ($(wildcard build/limine/.),)
 endif
 
 build:
-	RUSTFLAGS="$(RUSTFLAGS)" cargo build $(CARGO_FLAGS)
+	@RUSTFLAGS="$(RUSTFLAGS)" cargo build $(CARGO_FLAGS)
 
 kernel: build setup
 	@export KERNEL_EXECUTABLE=$$(RUSTFLAGS="$(RUSTFLAGS)" cargo build $(CARGO_FLAGS) --message-format=json | jq -r 'select(.executable) | .executable'); \
