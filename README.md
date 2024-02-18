@@ -15,6 +15,8 @@ Yet another Operating System in Rust. Motivating myself to live, I guess?
     - [x] Virtual Memory Manager
     - [x] Heap Allocator
 
+- [x] Stack Trace
+
 - [ ] Scheduler
 - [ ] Filesystems
     - [ ] Ext2
