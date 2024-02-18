@@ -1,6 +1,8 @@
 use core::str::from_utf8_unchecked;
 use core::{isize, str, usize};
 
+use rustc_demangle::Demangle;
+
 use crate::memory::VirtualAddress;
 use crate::misc::utils::size;
 
@@ -26,7 +28,7 @@ pub struct Elf64Header {
 }
 
 #[repr(u32)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum SectionHeaderType {
     Null = 0x0,
     Progbits = 0x1,
@@ -50,7 +52,7 @@ pub enum SectionHeaderType {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Elf64SectionHeader {
     pub name_offset: u32,
     pub section_type: SectionHeaderType,
@@ -108,8 +110,8 @@ unsafe fn read_str<'a>(input: *const u8) -> &'a str {
     let mut i = 0;
 
     while !(*byte == 0) {
-        byte = unsafe { input.offset(i as isize) };
         i += 1;
+        byte = unsafe { input.offset(i as isize) };
     }
 
     core::str::from_utf8_unchecked(core::slice::from_raw_parts(input, i))
@@ -136,46 +138,47 @@ impl Elf64 {
         }
     }
 
-    pub fn section_headers(&self) -> Elf64SectionHeaderIterator {
+    pub fn section_headers(&self) -> &[Elf64SectionHeader] {
         let address = self.address.as_addr() + self.header.section_header_offset;
 
-        Elf64SectionHeaderIterator {
-            base_address: address as *const Elf64SectionHeader,
-            index: 0,
-            total: self.header.section_header_total,
+        unsafe {
+            core::slice::from_raw_parts(
+                address as *const Elf64SectionHeader,
+                self.header.section_header_total as usize,
+            )
         }
     }
 
-    pub fn symbols(&self) -> Elf64SymbolIterator {
-        let symbol_table = self
+    pub fn symbol_table(&self) -> Elf64SectionHeader {
+        *self
             .section_headers()
+            .iter()
             .find(|header| header.section_type == SectionHeaderType::Symtab)
-            .expect("Cannot find symbol table");
+            .expect("Cannt find symbol table")
+    }
 
-        let address = self.address.as_addr() + symbol_table.offset;
-
-        // log::info!("symbol table offset 0x{:016X}", symbol_table.offset);
+    pub fn symbols(&self) -> Elf64SymbolIterator {
+        let symbol_table = self.symbol_table();
 
         let total = (symbol_table.size / symbol_table.entry_size) as u16;
+        let address = self.address.as_addr() + symbol_table.offset;
 
         Elf64SymbolIterator {
             address: address as *const Elf64Symbol,
-            symbol_table_entry_size: symbol_table.entry_size,
             symbol_table_size: symbol_table.size,
+            symbol_table_entry_size: symbol_table.entry_size,
             i: 0,
         }
     }
 
-    pub fn resolve_symbol_name<'a>(&self, string_table_index: u64) -> &'a str {
+    pub fn get_name<'a>(&self, string_table_index: u32, string_table: u32) -> &'a str {
         let string_table = self
             .section_headers()
-            .find(|header| header.section_type == SectionHeaderType::Strtab)
-            .expect("Cannot find string table");
+            .get(string_table as usize)
+            .expect("Failed to find linked symbol table");
 
-        let address = self.address.as_addr() + string_table.offset + string_table_index;
-
+        let address = self.address.as_addr() + string_table.offset + string_table_index as u64;
         let string = unsafe { read_str(address as *const u8) };
-
         string
     }
 }
