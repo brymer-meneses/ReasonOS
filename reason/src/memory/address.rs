@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use crate::arch::paging::PAGE_SIZE;
-use core::ptr;
 use core::{fmt, ops::Add, ops::AddAssign, ops::Sub};
 
 #[repr(C)]
