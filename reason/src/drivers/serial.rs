@@ -2,9 +2,10 @@ use core::fmt;
 use core::fmt::Write;
 
 use crate::arch::cpu;
-use crate::misc::utils::OnceCellMutex;
+use crate::misc::log;
+use crate::misc::utils::OnceLock;
 
-static mut SERIAL_WRITER: OnceCellMutex<Writer> = OnceCellMutex::new();
+static mut SERIAL_WRITER: OnceLock<Writer> = OnceLock::new();
 
 struct Writer {
     port: u16,
@@ -48,9 +49,11 @@ impl fmt::Write for Writer {
 }
 
 pub fn initialize() {
+    static PORT: u16 = 0x3f8;
     unsafe {
-        SERIAL_WRITER.set(Writer::new(0x3f8));
+        SERIAL_WRITER.set(Writer::new(PORT));
     }
+    log::info!("Serial Initialized at port 0x{:x}", PORT);
 }
 
 #[doc(hidden)]

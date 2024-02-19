@@ -12,9 +12,9 @@ pub const fn align_down(addr: u64, align: u64) -> u64 {
 }
 
 #[derive(Debug)]
-pub struct OnceCellMutex<T>(OnceCell<Mutex<T>>);
+pub struct OnceLock<T>(OnceCell<Mutex<T>>);
 
-impl<T> OnceCellMutex<T> {
+impl<T> OnceLock<T> {
     pub const fn new() -> Self {
         Self(OnceCell::new())
     }
@@ -31,8 +31,8 @@ impl<T> OnceCellMutex<T> {
     }
 }
 
-unsafe impl<T> Send for OnceCellMutex<T> {}
-unsafe impl<T> Sync for OnceCellMutex<T> {}
+unsafe impl<T> Send for OnceLock<T> {}
+unsafe impl<T> Sync for OnceLock<T> {}
 
 macro_rules! size {
     ($t:ty) => {

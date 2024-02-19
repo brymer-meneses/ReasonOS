@@ -7,6 +7,7 @@
 
 extern crate alloc;
 
+mod acpi;
 mod arch;
 mod boot;
 mod data_structures;
@@ -28,20 +29,17 @@ use misc::log;
 #[no_mangle]
 extern "C" fn _start() -> ! {
     serial::initialize();
+
     boot::initialize();
     framebuffer::initialize();
 
     arch::initialize();
     memory::initialize();
 
+    acpi::initialize();
+
     #[cfg(test)]
     test_main();
 
     cpu::halt();
-}
-
-#[cfg(test)]
-#[test_case]
-fn test_stacktrace() {
-    panic!("At the disco!");
 }

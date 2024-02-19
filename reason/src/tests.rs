@@ -3,7 +3,7 @@ use crate::misc::colored::Colorize;
 use crate::misc::qemu::{self, QemuExitCode};
 
 pub trait Testable {
-    fn run(&self) -> ();
+    fn run(&self);
 }
 
 impl<T> Testable for T

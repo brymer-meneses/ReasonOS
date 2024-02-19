@@ -43,7 +43,7 @@
 use crate::data_structures::{DoublyLinkedList, DoublyLinkedListNode, SinglyLinkedList};
 use crate::memory::IntoAddress;
 use crate::misc::log;
-use crate::misc::utils::{align_up, size, OnceCellMutex};
+use crate::misc::utils::{align_up, size, OnceLock};
 use core::cmp;
 use core::ptr::NonNull;
 
@@ -305,12 +305,12 @@ impl Iterator for HeapRegionIterator {
 }
 
 pub struct ExplicitFreeList {
-    vmm: NonNull<OnceCellMutex<VirtualMemoryManager>>,
+    vmm: NonNull<OnceLock<VirtualMemoryManager>>,
     regions: SinglyLinkedList<HeapRegion>,
 }
 
 impl ExplicitFreeList {
-    pub fn new(vmm: NonNull<OnceCellMutex<VirtualMemoryManager>>) -> Self {
+    pub fn new(vmm: NonNull<OnceLock<VirtualMemoryManager>>) -> Self {
         Self {
             vmm,
             regions: SinglyLinkedList::new(),

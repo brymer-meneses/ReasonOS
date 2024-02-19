@@ -8,10 +8,11 @@ mod address;
 mod heap;
 mod pmm;
 mod vmm;
+
 use crate::arch::paging::{self, PAGE_SIZE};
 use crate::boot::MEMORY_MAP_REQUEST;
 use crate::misc::log;
-use crate::misc::utils::{align_up, OnceCellMutex};
+use crate::misc::utils::{align_up, OnceLock};
 
 use pmm::BitmapAllocator;
 use vmm::VirtualMemoryManager;
@@ -21,11 +22,11 @@ pub use address::{PhysicalAddress, VirtualAddress};
 
 use self::heap::ExplicitFreeList;
 
-pub static mut PHYSICAL_MEMORY_MANAGER: OnceCellMutex<BitmapAllocator> = OnceCellMutex::new();
-pub static mut VIRTUAL_MEMORY_MANAGER: OnceCellMutex<VirtualMemoryManager> = OnceCellMutex::new();
+pub static mut PHYSICAL_MEMORY_MANAGER: OnceLock<BitmapAllocator> = OnceLock::new();
+pub static mut VIRTUAL_MEMORY_MANAGER: OnceLock<VirtualMemoryManager> = OnceLock::new();
 
 #[global_allocator]
-pub static mut KERNEL_HEAP_ALLOCATOR: OnceCellMutex<ExplicitFreeList> = OnceCellMutex::new();
+pub static mut KERNEL_HEAP_ALLOCATOR: OnceLock<ExplicitFreeList> = OnceLock::new();
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -71,7 +72,7 @@ pub fn initialize() {
 
 use core::alloc::Layout;
 
-unsafe impl GlobalAlloc for OnceCellMutex<ExplicitFreeList> {
+unsafe impl GlobalAlloc for OnceLock<ExplicitFreeList> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let mut allocator = self.lock();
 
