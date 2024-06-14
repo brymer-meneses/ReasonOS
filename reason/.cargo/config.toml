@@ -1,5 +1,0 @@
-# NOTE:
-# mainly for lsp stuff we have our configuration at the `Makefile`
-
-[build]
-target = "x86_64-unknown-none"

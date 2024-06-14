@@ -1,8 +1,2 @@
-/**/target
-build/
-/**/.DS_Store
-qemu-log.txt
 
-/**/__pycache__/
-.zed
-.vscode
+*.DS_Store
