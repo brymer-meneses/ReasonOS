@@ -82,6 +82,12 @@ pub fn build(b: *std.Build) void {
     const compile_kernel = b.step("kernel", "Compile the kernel");
     compile_kernel.dependOn(&kernel.step);
 
-    const create_iso = b.step("iso", "create the iso");
+    const create_iso = b.step("iso", "Create the iso");
     create_iso.dependOn(&iso.step);
+
+    const run_iso = b.step("run", "Run the ISO in QEMU");
+    const qemu = b.addSystemCommand(&.{ "qemu-system-x86_64", "-cdrom" });
+    qemu.addFileArg(iso.source);
+    run_iso.dependOn(&iso.step);
+    run_iso.dependOn(&qemu.step);
 }
