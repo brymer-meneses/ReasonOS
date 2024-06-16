@@ -1,0 +1,15 @@
+.{
+    .name = "reason-os",
+    .version = "0.0.0",
+    .paths = .{""},
+    .dependencies = .{
+        .limine_zig = .{
+            .url = "https://github.com/limine-bootloader/limine-zig/archive/7b29b6e6f6d35052f01ed3831085a39aae131705.tar.gz",
+            .hash = "1220f946f839eab2ec49dca1c805ce72ac3e3ef9c47b3afcdecd1c05a7b35f66d277",
+        },
+        .limine = .{
+            .url = "git+https://github.com/limine-bootloader/limine?ref=v7.x-binary#f1c0525a7afa3b7b1147093be053bf2a801fd871",
+            .hash = "1220f785c1716efe2b828a2ce46d7983ad729dd3432a519cbe2ac4c762921855969b",
+        },
+    },
+}
