@@ -1,7 +1,7 @@
 const limine = @import("limine");
 const std = @import("std");
 const log = @import("log.zig");
-const io = std.io;
+const cpu = @import("arch/cpu.zig");
 
 pub export var framebuffer_request: limine.FramebufferRequest = .{};
 pub export var base_revision: limine.BaseRevision = .{ .revision = 2 };
@@ -16,6 +16,8 @@ export fn _start() callconv(.C) noreturn {
     if (!base_revision.is_supported()) {
         done();
     }
+
+    cpu.init();
 
     if (framebuffer_request.response) |framebuffer_response| {
         if (framebuffer_response.framebuffer_count < 1) {
