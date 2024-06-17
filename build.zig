@@ -53,8 +53,8 @@ pub fn build(b: *std.Build) void {
     _ = iso_root.addCopyFile(kernel.getEmittedBin(), "boot/kernel");
     _ = iso_root.addCopyFile(b.path("limine.cfg"), "limine.cfg");
 
-    const xorriso = b.addSystemCommand(&.{"xorriso"});
-    xorriso.addArgs(&.{
+    const xorriso = b.addSystemCommand(&.{
+        "xorriso",
         "-as",
         "mkisofs",
         "-b",
@@ -86,7 +86,13 @@ pub fn build(b: *std.Build) void {
     create_iso.dependOn(&iso.step);
 
     const run_iso = b.step("run", "Run the ISO in QEMU");
-    const qemu = b.addSystemCommand(&.{ "qemu-system-x86_64", "-cdrom" });
+    const qemu = b.addSystemCommand(&.{
+        "qemu-system-x86_64",
+        "-serial",
+        "stdio",
+        "-cdrom",
+    });
+
     qemu.addFileArg(iso.source);
     run_iso.dependOn(&iso.step);
     run_iso.dependOn(&qemu.step);
