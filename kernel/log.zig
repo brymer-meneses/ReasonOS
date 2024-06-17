@@ -1,7 +1,8 @@
 const log = @This();
 
 const std = @import("std");
-const cpu = @import("cpu.zig");
+const builtin = @import("builtin");
+
 const SpinLock = @import("lock.zig").SpinLock;
 
 const Writer = std.io.Writer(*SpinLock, error{}, writeFn);
@@ -13,9 +14,11 @@ fn writeFn(lock: *SpinLock, bytes: []const u8) error{}!usize {
     lock.acquire();
     defer lock.release();
 
+    const cpu = @import("arch/cpu.zig");
     for (bytes) |byte| {
         cpu.writeByte(0x3f8, byte);
     }
+
     return bytes.len;
 }
 
