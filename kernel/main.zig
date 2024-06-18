@@ -1,7 +1,7 @@
 const limine = @import("limine");
 const std = @import("std");
 const log = @import("log.zig");
-const cpu = @import("arch/cpu.zig");
+const arch = @import("arch/arch.zig");
 
 pub export var framebuffer_request: limine.FramebufferRequest = .{};
 pub export var base_revision: limine.BaseRevision = .{ .revision = 2 };
@@ -17,7 +17,7 @@ export fn _start() callconv(.C) noreturn {
         done();
     }
 
-    cpu.init();
+    arch.init();
 
     if (framebuffer_request.response) |framebuffer_response| {
         if (framebuffer_response.framebuffer_count < 1) {
@@ -29,6 +29,8 @@ export fn _start() callconv(.C) noreturn {
             @as(*u32, @ptrCast(@alignCast(framebuffer.address + pixel_offset))).* = 0xFFFFFFFF;
         }
     }
+
+    asm volatile ("int $0xA");
 
     done();
 }

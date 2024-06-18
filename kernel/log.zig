@@ -33,3 +33,7 @@ pub fn info(comptime fmt: []const u8, args: anytype) void {
 pub fn warn(comptime fmt: []const u8, args: anytype) void {
     std.fmt.format(writer, "[WARN]: " ++ fmt ++ "\n", args) catch return;
 }
+
+pub fn write(comptime fmt: []const u8, args: anytype) void {
+    std.fmt.format(writer, fmt ++ "\n", args) catch return;
+}
