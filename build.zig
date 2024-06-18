@@ -13,7 +13,7 @@ pub fn build(b: *std.Build) void {
 
     {
         const compile_kernel = b.step("kernel", "Compile the kernel");
-        compile_kernel.dependOn(&kernel.step);
+        compile_kernel.dependOn(&b.addInstallArtifact(kernel, .{}).step);
     }
 
     {
@@ -58,6 +58,7 @@ pub fn configure_kernel(b: *std.Build, arch: SupportedArchs, optimize: std.built
             });
 
             kernel.addAssemblyFile(b.path("kernel/arch/x86_64/load_gdt.S"));
+            kernel.addAssemblyFile(b.path("kernel/arch/x86_64/interrupt_handlers.S"));
             kernel.addAssemblyFile(b.path("kernel/arch/x86_64/interrupt_handlers.S"));
 
             kernel.root_module.addImport("limine", limine_zig.module("limine"));
