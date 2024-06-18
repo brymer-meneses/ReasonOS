@@ -1,3 +1,6 @@
+const std = @import("std");
+const log = @import("../../log.zig");
+
 const GdtEntry = packed struct {
     limit_low: u16,
     base_low: u24,
@@ -7,56 +10,32 @@ const GdtEntry = packed struct {
     base_high: u8,
 
     const Access = packed struct {
-        accessed: bool,
-        readble_writable: bool,
-        direction_conforming: bool,
-        executable: bool,
-        descriptor_type: bool,
+        accessed: u1,
+        readble_writable: u1,
+        direction_conforming: u1,
+        executable: u1,
+        descriptor_type: u1,
         descriptor_privilege: u2,
-        present: bool,
+        present: u1,
     };
 
     const Flags = packed struct {
-        reserved: bool,
-        long_mode: bool,
-        size: bool,
-        granularity: bool,
+        reserved: u1,
+        long_mode: u1,
+        size: u1,
+        granularity: u1,
     };
 
     const Self = @This();
 
     pub fn init(base: u32, limit: u24, access: Access, flags: Flags) Self {
         return .{
-            .limit_low = limit & ~0x10000,
-            .limit_high = limit >> 16,
+            .limit_low = @truncate(limit),
+            .limit_high = @truncate(limit >> 16),
+            .base_low = @truncate(base),
+            .base_high = @truncate(base >> 24),
             .access = access,
             .flags = flags,
-            .base_high = base >> 24,
-            .base_low = base & ~0x1000000,
-        };
-    }
-
-    pub fn empty() Self {
-        return .{
-            .limit_low = 0,
-            .base_low = 0,
-            .base_high = 0,
-            .access = .{
-                .accessd = false,
-                .readble_writable = false,
-                .direction_conforming = false,
-                .executable = false,
-                .descriptor_type = false,
-                .descriptor_privilege = 0,
-                .present = false,
-            },
-            .limit_high = 0,
-            .flags = .{
-                .reserved = false,
-                .long_mode = false,
-                .size = false,
-                .granularity = false,
-            },
         };
     }
 };
@@ -68,6 +47,8 @@ const GdtPtr = packed struct {
 
 var Gdt: [5]GdtEntry = undefined;
 
+extern fn load_gdt(gdtptr: *const GdtPtr) callconv(.C) void;
+
 pub fn install() void {
 
     // null descriptor
@@ -75,19 +56,19 @@ pub fn install() void {
         0,
         0,
         .{
-            .accessd = false,
-            .readble_writable = false,
-            .direction_conforming = false,
-            .executable = false,
-            .descriptor_type = false,
+            .accessed = 0,
+            .readble_writable = 0,
+            .direction_conforming = 0,
+            .executable = 0,
+            .descriptor_type = 0,
             .descriptor_privilege = 0,
-            .present = false,
+            .present = 0,
         },
         .{
-            .reserved = false,
-            .long_mode = false,
-            .size = false,
-            .granularity = false,
+            .reserved = 0,
+            .long_mode = 0,
+            .size = 0,
+            .granularity = 0,
         },
     );
 
@@ -96,19 +77,19 @@ pub fn install() void {
         0,
         0xFFFFF,
         .{
-            .accessd = false,
-            .readble_writable = true,
-            .direction_conforming = false,
-            .executable = true,
-            .descriptor_type = true,
+            .accessed = 0,
+            .readble_writable = 1,
+            .direction_conforming = 0,
+            .executable = 1,
+            .descriptor_type = 1,
             .descriptor_privilege = 0,
-            .present = true,
+            .present = 1,
         },
         .{
-            .reserved = false,
-            .long_mode = false,
-            .size = true,
-            .granularity = true,
+            .reserved = 0,
+            .long_mode = 1,
+            .size = 0,
+            .granularity = 1,
         },
     );
 
@@ -117,19 +98,19 @@ pub fn install() void {
         0,
         0xFFFFF,
         .{
-            .accessd = false,
-            .readble_writable = true,
-            .direction_conforming = false,
-            .executable = false,
-            .descriptor_type = true,
+            .accessed = 0,
+            .readble_writable = 1,
+            .direction_conforming = 0,
+            .executable = 0,
+            .descriptor_type = 1,
             .descriptor_privilege = 0,
-            .present = true,
+            .present = 1,
         },
         .{
-            .reserved = false,
-            .long_mode = false,
-            .size = true,
-            .granularity = true,
+            .reserved = 0,
+            .long_mode = 0,
+            .size = 1,
+            .granularity = 1,
         },
     );
 
@@ -138,19 +119,19 @@ pub fn install() void {
         0,
         0xFFFFF,
         .{
-            .accessd = false,
-            .readble_writable = true,
-            .direction_conforming = false,
-            .executable = true,
-            .descriptor_type = true,
+            .accessed = 0,
+            .readble_writable = 1,
+            .direction_conforming = 0,
+            .executable = 1,
+            .descriptor_type = 1,
             .descriptor_privilege = 0b11,
-            .present = true,
+            .present = 1,
         },
         .{
-            .reserved = false,
-            .long_mode = false,
-            .size = true,
-            .granularity = true,
+            .reserved = 0,
+            .long_mode = 1,
+            .size = 0,
+            .granularity = 1,
         },
     );
 
@@ -159,24 +140,28 @@ pub fn install() void {
         0,
         0xFFFFF,
         .{
-            .accessd = false,
-            .readble_writable = true,
-            .direction_conforming = false,
-            .executable = false,
-            .descriptor_type = true,
+            .accessed = 0,
+            .readble_writable = 1,
+            .direction_conforming = 0,
+            .executable = 0,
+            .descriptor_type = 1,
             .descriptor_privilege = 0b11,
-            .present = true,
+            .present = 1,
         },
         .{
-            .reserved = false,
-            .long_mode = false,
-            .size = true,
-            .granularity = true,
+            .reserved = 0,
+            .long_mode = 0,
+            .size = 1,
+            .granularity = 1,
         },
     );
 
-    _ = GdtPtr{
+    const gdtptr = GdtPtr{
         .limit = @sizeOf(GdtEntry) * Gdt.len - 1,
         .base = @intFromPtr(&Gdt),
     };
+
+    load_gdt(&gdtptr);
+
+    log.info("Loaded GDT!", .{});
 }

@@ -27,6 +27,14 @@ pub fn build(b: *std.Build) void {
             "qemu-system-" ++ @tagName(arch),
             "-serial",
             "stdio",
+            "-D",
+            "qemu-log.txt",
+            "-d",
+            "int",
+            "-M",
+            "smm=off",
+            "-device",
+            "isa-debug-exit,iobase=0xf4,iosize=0x0f",
             "-cdrom",
         });
         qemu.addFileArg(iso.source);
@@ -48,6 +56,8 @@ pub fn configure_kernel(b: *std.Build, arch: SupportedArchs, optimize: std.built
                 .code_model = .kernel,
                 .pic = true,
             });
+
+            kernel.addAssemblyFile(b.path("kernel/arch/x86_64/load_gdt.S"));
 
             kernel.root_module.addImport("limine", limine_zig.module("limine"));
             kernel.want_lto = false; // Disable LTO. This prevents issues with limine requests

@@ -30,7 +30,5 @@ export fn _start() callconv(.C) noreturn {
         }
     }
 
-    log.debug("Hello {s}!", .{"world"});
-
     done();
 }
