@@ -28,7 +28,7 @@ pub fn build(b: *std.Build) void {
             "-serial",
             "stdio",
             "-D",
-            "qemu-log.txt",
+            ".qemu-log.txt",
             "-d",
             "int",
             "-M",
