@@ -14,7 +14,7 @@ fn writeFn(lock: *SpinLock, bytes: []const u8) error{}!usize {
     lock.acquire();
     defer lock.release();
 
-    const cpu = @import("arch/cpu.zig");
+    const cpu = @import("arch/arch.zig").cpu;
     for (bytes) |byte| {
         cpu.writeByte(0x3f8, byte);
     }
