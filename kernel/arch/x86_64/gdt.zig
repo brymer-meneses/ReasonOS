@@ -20,7 +20,7 @@ const GdtEntry = packed struct {
     };
 
     const Flags = packed struct {
-        reserved: u1,
+        __padding: u1 = 0,
         long_mode: u1,
         size: u1,
         granularity: u1,
@@ -49,6 +49,9 @@ var Gdt: [5]GdtEntry = undefined;
 
 extern fn load_gdt(gdtptr: *const GdtPtr) callconv(.C) void;
 
+pub const KERNEL_CODE_SEGMENT = 0x08;
+pub const KERNEL_DATE_SEGMENT = 0x10;
+
 pub fn install() void {
 
     // null descriptor
@@ -65,7 +68,6 @@ pub fn install() void {
             .present = 0,
         },
         .{
-            .reserved = 0,
             .long_mode = 0,
             .size = 0,
             .granularity = 0,
@@ -86,7 +88,6 @@ pub fn install() void {
             .present = 1,
         },
         .{
-            .reserved = 0,
             .long_mode = 1,
             .size = 0,
             .granularity = 1,
@@ -107,7 +108,6 @@ pub fn install() void {
             .present = 1,
         },
         .{
-            .reserved = 0,
             .long_mode = 0,
             .size = 1,
             .granularity = 1,
@@ -128,7 +128,6 @@ pub fn install() void {
             .present = 1,
         },
         .{
-            .reserved = 0,
             .long_mode = 1,
             .size = 0,
             .granularity = 1,
@@ -149,7 +148,6 @@ pub fn install() void {
             .present = 1,
         },
         .{
-            .reserved = 0,
             .long_mode = 0,
             .size = 1,
             .granularity = 1,
