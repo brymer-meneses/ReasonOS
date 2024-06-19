@@ -46,6 +46,15 @@ pub fn configure_kernel(b: *std.Build, arch: SupportedArchs, optimize: std.built
     const limine_zig = b.dependency("limine_zig", .{});
     const target = configure_target(b, arch);
 
+    const kernel_libs = b.createModule(.{
+        .root_source_file = b.path("kernel/lib.zig"),
+        .target = target,
+        .optimize = optimize,
+        .code_model = .kernel,
+        .pic = true,
+    });
+    kernel_libs.addImport("kernel", kernel_libs);
+
     switch (arch) {
         .x86_64 => {
             const kernel = b.addExecutable(.{
@@ -61,6 +70,8 @@ pub fn configure_kernel(b: *std.Build, arch: SupportedArchs, optimize: std.built
             kernel.addAssemblyFile(b.path("kernel/arch/x86_64/interrupt_handlers.S"));
 
             kernel.root_module.addImport("limine", limine_zig.module("limine"));
+            kernel.root_module.addImport("kernel", kernel_libs);
+
             kernel.want_lto = false; // Disable LTO. This prevents issues with limine requests
             kernel.setLinkerScriptPath(b.path("kernel/arch/x86_64/linker.ld"));
             return kernel;

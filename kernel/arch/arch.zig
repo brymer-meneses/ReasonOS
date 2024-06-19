@@ -1,5 +1,3 @@
-pub const arch = @This();
-
 const builtin = @import("builtin");
 
 pub const cpu = switch (builtin.cpu.arch) {

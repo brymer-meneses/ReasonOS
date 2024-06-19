@@ -1,7 +1,8 @@
-const gdt = @import("gdt.zig");
 const std = @import("std");
+const log = @import("kernel").utils.log;
+
+const gdt = @import("gdt.zig");
 const cpu = @import("cpu.zig");
-const log = @import("../../log.zig");
 
 const Privilege = enum(u2) {
     ring0 = 0,
@@ -75,7 +76,7 @@ pub fn install() void {
         :
         : [idtptr] "r" (&idtptr),
     );
-    //
+
     log.info("Loaded IDT", .{});
 }
 

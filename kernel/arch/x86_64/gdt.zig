@@ -1,5 +1,5 @@
 const std = @import("std");
-const log = @import("../../log.zig");
+const log = @import("kernel").utils.log;
 
 const GdtEntry = packed struct {
     limit_low: u16,

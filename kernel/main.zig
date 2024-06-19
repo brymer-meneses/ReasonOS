@@ -1,7 +1,8 @@
+const arch = @import("kernel").arch;
+const log = @import("kernel").utils;
+
 const limine = @import("limine");
 const std = @import("std");
-const log = @import("log.zig");
-const arch = @import("arch/arch.zig");
 
 pub export var framebuffer_request: limine.FramebufferRequest = .{};
 pub export var base_revision: limine.BaseRevision = .{ .revision = 2 };
@@ -31,9 +32,7 @@ export fn _start() callconv(.C) noreturn {
         }
     }
 
-    asm volatile ("int $0x99");
-
-    asm volatile ("int $0x99");
+    // asm volatile ("int $0x99");
 
     done();
 }

@@ -1,5 +1,5 @@
 const std = @import("std");
-const log = @import("../../log.zig");
+const log = @import("kernel").utils.log;
 
 pub fn writeByte(port: u16, value: u8) void {
     asm volatile ("outb %[value], %[port]"

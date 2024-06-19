@@ -1,5 +1,3 @@
-const log = @This();
-
 const std = @import("std");
 const builtin = @import("builtin");
 
@@ -14,7 +12,7 @@ fn writeFn(lock: *SpinLock, bytes: []const u8) error{}!usize {
     lock.acquire();
     defer lock.release();
 
-    const cpu = @import("arch/arch.zig").cpu;
+    const cpu = @import("kernel").arch.cpu;
     for (bytes) |byte| {
         cpu.writeByte(0x3f8, byte);
     }
