@@ -1,5 +1,14 @@
 const gdt = @import("gdt.zig");
 const std = @import("std");
+const cpu = @import("cpu.zig");
+const log = @import("../../log.zig");
+
+const Privilege = enum(u2) {
+    ring0 = 0,
+    ring1 = 1,
+    ring2 = 2,
+    ring3 = 3,
+};
 
 const IdtEntry = packed struct {
     // NOTE:
@@ -20,7 +29,7 @@ const IdtEntry = packed struct {
             trap_gate = 0xF,
         },
         __padding: u1 = 0,
-        dpl: u2,
+        privilege: Privilege,
         present: u1,
     };
 
@@ -44,42 +53,45 @@ const IdtPtr = packed struct {
 
 var Idt: [256]IdtEntry = undefined;
 
-extern const INTERRUPT_HANDLERS: [256]*anyopaque;
+extern fn interrupt_handler0() void;
 
 pub fn install() void {
+    const flags: IdtEntry.Flags = .{
+        .gate_type = .interrupt_gate,
+        .privilege = Privilege.ring0,
+        .present = 1,
+    };
+
+    for (0..256) |i| {
+        Idt[i] = IdtEntry.init(@intFromPtr(&interrupt_handler0) + i * 16, flags);
+    }
+
     const idtptr = IdtPtr{
         .limit = @sizeOf(IdtEntry) * Idt.len - 1,
         .base = @intFromPtr(&Idt),
     };
 
-    const flags = .{
-        .gate_type = .interrupt_gate,
-        .dpl = 0,
-        .present = 1,
-    };
-    for (INTERRUPT_HANDLERS, 0..) |handler, i| {
-        Idt[i] = IdtEntry.init(@intFromPtr(handler), flags);
-    }
-
-    asm volatile ("lidt (%[ptr])"
+    asm volatile ("lidt (%[idtptr])"
         :
-        : [ptr] "r" (&idtptr),
+        : [idtptr] "r" (&idtptr),
     );
-
+    //
     log.info("Loaded IDT", .{});
 }
 
-const cpu = @import("cpu.zig");
-const log = @import("../../log.zig");
+const InterruptContext = extern struct {
+    cpu: cpu.Registers,
+    interrupt: cpu.InterruptFrame,
+};
 
-pub export fn interrupt_dispatch(_: *cpu.Registers, frame: *cpu.InterruptFrame) callconv(.C) void {
-    // log.write("Caught an exception! {x}", .{frame.flags});
-    //
-    // inline for (std.meta.fields(cpu.Registers)) |f| {
-    //     log.write("{s}: 0x{x}", .{ f.name, @field(registers, f.name) });
-    // }
+pub export fn interrupt_dispatch(ctx: *const InterruptContext) callconv(.C) void {
+    log.write("Caught an exception! 0x{x}", .{ctx.interrupt.interrupt_number});
+
+    inline for (std.meta.fields(cpu.Registers)) |f| {
+        log.write("{s}: 0x{x}", .{ f.name, @field(ctx.cpu, f.name) });
+    }
 
     inline for (std.meta.fields(cpu.InterruptFrame)) |f| {
-        log.write("{s}: 0x{x}", .{ f.name, @field(frame, f.name) });
+        log.write("{s}: 0x{x}", .{ f.name, @field(ctx.interrupt, f.name) });
     }
 }

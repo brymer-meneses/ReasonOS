@@ -24,13 +24,16 @@ export fn _start() callconv(.C) noreturn {
             done();
         }
         const framebuffer = framebuffer_response.framebuffers()[0];
+
         for (0..100) |i| {
             const pixel_offset = i * framebuffer.pitch + i * 4;
             @as(*u32, @ptrCast(@alignCast(framebuffer.address + pixel_offset))).* = 0xFFFFFFFF;
         }
     }
 
-    asm volatile ("int $0xA");
+    asm volatile ("int $0x99");
+
+    asm volatile ("int $0x99");
 
     done();
 }

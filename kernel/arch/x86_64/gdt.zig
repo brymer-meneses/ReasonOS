@@ -134,7 +134,7 @@ pub fn install() void {
         },
     );
 
-    // user mode code segment
+    // user mode data segment
     Gdt[4] = GdtEntry.init(
         0,
         0xFFFFF,

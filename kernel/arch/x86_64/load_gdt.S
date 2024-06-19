@@ -1,7 +1,7 @@
 # NOTE:
 # the placement in the `gdt` affects these values
-.set KERNEL_DATA_SEGMENT, 0x10
 .set KERNEL_CODE_SEGMENT, 0x08
+.set KERNEL_DATA_SEGMENT, 0x10
 
 .intel_syntax noprefix
 .code64

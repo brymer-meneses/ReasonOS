@@ -1,17 +1,17 @@
-
+.code64
 .intel_syntax noprefix
 
 .macro error_interrupt_handler number
-  .global interrupt_handler\number
   .align 16
+  .global interrupt_handler\number
   interrupt_handler\number:
     push qword ptr \number                   
     jmp common_interrupt_handler
 .endm
 
 .macro no_error_interrupt_handler number
-  .global interrupt_handler\number
   .align 16
+  .global interrupt_handler\number
   interrupt_handler\number:
     push qword ptr 0
     push qword ptr \number                   
@@ -90,10 +90,10 @@ no_error_interrupt_handler 29
 error_interrupt_handler 30
 no_error_interrupt_handler 31
 
-.global INTERRUPT_HANDLERS
-INTERRUPT_HANDLERS:
-.set i, 0
-.rept 32
-    .quad interrupt_handler0+i
+# `.altmacro` ensures that %i gets resolved to it's numeric value
+.altmacro 
+.set i, 32
+.rept 256 - 32
+    no_error_interrupt_handler %i
     .set i, i+1
 .endr

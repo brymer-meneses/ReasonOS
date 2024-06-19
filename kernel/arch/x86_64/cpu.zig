@@ -27,8 +27,8 @@ pub const Registers = extern struct {
 };
 
 pub const InterruptFrame = extern struct {
-    vector: u64,
-    error_number: u64,
+    interrupt_number: u64,
+    @"error": u64,
     rip: u64,
     cs: u64,
     flags: u64,
