@@ -1,8 +1,9 @@
 const arch = @import("kernel").arch;
-const log = @import("kernel").utils;
+const log = @import("kernel").utils.log;
 
 const limine = @import("limine");
 const std = @import("std");
+const builtin_panic = @import("std").builtin.panic;
 
 pub export var framebuffer_request: limine.FramebufferRequest = .{};
 pub export var base_revision: limine.BaseRevision = .{ .revision = 2 };
@@ -11,6 +12,12 @@ inline fn done() noreturn {
     while (true) {
         asm volatile ("hlt");
     }
+}
+
+pub fn panic(message: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
+    log.write("FATAL: {s}", .{message});
+
+    done();
 }
 
 export fn _start() callconv(.C) noreturn {
@@ -32,7 +39,7 @@ export fn _start() callconv(.C) noreturn {
         }
     }
 
-    // asm volatile ("int $0x99");
+    asm volatile ("int $0x99");
 
     done();
 }
